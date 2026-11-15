@@ -2,6 +2,11 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.0.2
+
+- Per-file scroll position memory: switching files or a preview remount no longer jumps back to the top.
+- Investigated typing-time flicker/jumps: scripted typing (Latin keys, IME composition, long documents with internal scrolling, small windows) did not reproduce caret or scroll displacement, so the confirmed fix this release targets the remount-to-top path.
+
 ## 1.0.0
 
 First public release.

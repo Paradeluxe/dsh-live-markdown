@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.1'
+      const BUILD_STAMP = '1.0.2'
 
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
@@ -2193,6 +2193,8 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
       const cm6EditorMemory = new Map()
       const cm6HistoryMemory = new Map()
       const cm6FoldMemory = new Map()
+      /** 每个文件记住滚动位置：宿主重挂载或切走再回来时恢复，避免跳回顶部。 */
+      const cm6ScrollMemory = new Map()
 
       function MarkdownBody(props) {
         const { content } = props
@@ -2521,6 +2523,26 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             },
           })
           cm6ViewRef.current = view
+          // 恢复上次滚动位置（宿主重挂载后不会跳回顶部），并持续记录
+          try {
+            const scroller = view.view.scrollDOM
+            const saved = typeof sourcePath === 'string' ? cm6ScrollMemory.get(sourcePath) : undefined
+            if (typeof saved === 'number' && Number.isFinite(saved) && saved > 0) scroller.scrollTop = saved
+            let scrollTimer = 0
+            const onScroll = () => {
+              if (scrollTimer !== 0) return
+              scrollTimer = window.setTimeout(() => {
+                scrollTimer = 0
+                if (typeof sourcePath === 'string') cm6ScrollMemory.set(sourcePath, Math.round(scroller.scrollTop))
+              }, 250)
+            }
+            scroller.addEventListener('scroll', onScroll, { passive: true })
+            view.__ghMdScrollCleanup = () => {
+              scroller.removeEventListener('scroll', onScroll)
+              if (scrollTimer !== 0) window.clearTimeout(scrollTimer)
+              if (typeof sourcePath === 'string') cm6ScrollMemory.set(sourcePath, Math.round(scroller.scrollTop))
+            }
+          } catch {}
           // 官方预览在保存后会重挂载正文；恢复上次光标位置与焦点，避免光标跳回文档开头。restore cm6 memory
           try {
             const memory = typeof sourcePath === 'string' ? cm6EditorMemory.get(sourcePath) : undefined
@@ -2536,6 +2558,11 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           } catch {}
           return () => {
             cm6ViewRef.current = null
+            try { if (typeof view.__ghMdScrollCleanup === 'function') view.__ghMdScrollCleanup() } catch {}
+            try {
+              const scroller = view.view.scrollDOM
+              if (typeof sourcePath === 'string') cm6ScrollMemory.set(sourcePath, Math.round(scroller.scrollTop))
+            } catch {}
             view.destroy()
           }
         }, [cm6Loaded, editable])

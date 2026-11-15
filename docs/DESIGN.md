@@ -2194,3 +2194,11 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 发布仓库即开发副本：`E:/hermes_playground/dsh-live-markdown`，验证 profile 用 `link:` 指向它；
 - SPEC/DESIGN 从开发目录迁入 `docs/`，随仓库一起维护；
 - 版本一致性检查（BUILD_STAMP = package.version，README/DESIGN 含同样版本串）继续生效。
+
+---
+
+## 116. v1.0.2：滚动位置记忆
+
+- 每个文件在内存里记住 `scrollDOM.scrollTop`（滚动时 250ms 节流记录，销毁时再记一次），挂载后恢复；
+- 目的：宿主重挂载预览或切换文件时不再跳回顶部（这类跳动在打字/保存后尤其明显）；
+- 打字闪动的复现尝试：英文逐字、IME 组合输入、长文档内部滚动、小窗口，均未测得光标/滚动位移，留待更多现场信息。
