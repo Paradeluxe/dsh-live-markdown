@@ -2,7 +2,7 @@
  * 渲染管线冒烟：把 `client.js` 里 `/* github-md:render:start *\/` 与 `/* github-md:render:end *\/`
  * 之间的纯函数截出来，放进 jsdom + 真实 marked / DOMPurify / KaTeX 里跑。
  *
- * jsdom 不是插件依赖，通过 `GITHUB_MD_TEST_ROOT` 指到装着 jsdom 的临时目录（见 README）。
+ * jsdom 只在开发时使用（devDependency）；也可以用 `GITHUB_MD_TEST_ROOT` 指向别的装有 jsdom 的目录。
  */
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -10,11 +10,18 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..')
-const jsdomRoot = process.env.GITHUB_MD_TEST_ROOT ?? ''
-if (jsdomRoot === '') throw new Error('请设置 GITHUB_MD_TEST_ROOT 指向装有 jsdom 的目录')
-const require = createRequire(join(jsdomRoot, 'package.json'))
-
-const { JSDOM } = require('jsdom')
+const require = createRequire(import.meta.url)
+let jsdom = null
+try {
+  jsdom = require('jsdom')
+} catch {
+  const jsdomRoot = process.env.GITHUB_MD_TEST_ROOT ?? ''
+  if (jsdomRoot === '') {
+    throw new Error('未找到 jsdom：请先 npm install，或设置 GITHUB_MD_TEST_ROOT 指向装有 jsdom 的目录')
+  }
+  jsdom = createRequire(join(jsdomRoot, 'package.json'))('jsdom')
+}
+const { JSDOM } = jsdom
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://127.0.0.1:49758/' })
 globalThis.window = dom.window
 globalThis.document = dom.window.document
