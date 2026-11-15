@@ -1,6 +1,6 @@
-# GitHub 风格的 Markdown 实时预览（Obsidian 式 Live Preview）
+# dsh-live-markdown：Obsidian 式 Markdown 实时预览
 #
 # 把 bundle 插入当前 profile；插件行 id 唯一即可，name 需与包名一致。
 - insert:
-    - id: github-md
-      name: 'dsh-plugin-github-md'
+    - id: live-markdown
+      name: '@paradeluxe/dsh-live-markdown'

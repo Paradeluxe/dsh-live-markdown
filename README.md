@@ -1,4 +1,4 @@
-# dsh-plugin-github-md
+# dsh-live-markdown
 
 English | [中文](README.zh.md)
 
@@ -44,7 +44,7 @@ Headings, paragraphs and lists use Obsidian's measured row heights:
 ### From GitHub
 
 ```sh
-dsh plugin --profile desktop add github:Paradeluxe/dsh-plugin-github-md
+dsh plugin --profile desktop add github:Paradeluxe/dsh-live-markdown
 ```
 
 Use the profile you actually run — `desktop` for the Desktop app. In the app you can also use **Plugins → Add plugin** and point it at a local checkout.
@@ -52,7 +52,7 @@ Use the profile you actually run — `desktop` for the Desktop app. In the app y
 ### From npm
 
 ```sh
-dsh plugin --profile desktop add dsh-plugin-github-md
+dsh plugin --profile desktop add @paradeluxe/dsh-live-markdown
 ```
 
 If that package is not on npm yet, use the GitHub command above; both install the same code.

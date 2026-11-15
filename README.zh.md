@@ -1,4 +1,4 @@
-# dsh-plugin-github-md
+# dsh-live-markdown
 
 [English](README.md) | 中文
 
@@ -44,7 +44,7 @@
 ### 从 GitHub 安装
 
 ```sh
-dsh plugin --profile desktop add github:Paradeluxe/dsh-plugin-github-md
+dsh plugin --profile desktop add github:Paradeluxe/dsh-live-markdown
 ```
 
 `desktop` 换成你实际使用的 profile 名。也可以在应用里用 **插件 → 添加插件** 指向本地目录。
@@ -52,7 +52,7 @@ dsh plugin --profile desktop add github:Paradeluxe/dsh-plugin-github-md
 ### 从 npm 安装
 
 ```sh
-dsh plugin --profile desktop add dsh-plugin-github-md
+dsh plugin --profile desktop add @paradeluxe/dsh-live-markdown
 ```
 
 如果 npm 上还没有这个包，用上面的 GitHub 命令，代码相同。

@@ -17,14 +17,14 @@
  */
 ;(() => {
   window.__ModuleLoader__.load({
-    id: 'dsh-plugin-github-md',
+    id: '@paradeluxe/dsh-live-markdown',
     factory(require) {
       const React = require('react')
 
       /** 本地化命名空间。 */
       const NS = 'githubMarkdown'
       /** 文档渲染器 id：元数据与 keyed 子 slot 的 key 必须一致。 */
-      const RENDERER_ID = 'dsh-plugin-github-md/github-markdown'
+      const RENDERER_ID = '@paradeluxe/dsh-live-markdown/live-markdown'
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */

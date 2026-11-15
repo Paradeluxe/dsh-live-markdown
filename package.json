@@ -1,18 +1,18 @@
 {
-  "name": "dsh-plugin-github-md",
+  "name": "@paradeluxe/dsh-live-markdown",
   "version": "1.0.0",
   "type": "module",
   "private": false,
   "description": "Obsidian-style Live Preview for Markdown in DSH: every block renders, only the block you edit shows its source. Tables, images (double-click lightbox), callouts, embeds, math, folding and editing keymap follow real Obsidian measurements.",
   "license": "MIT",
   "author": "Paradeluxe",
-  "homepage": "https://github.com/Paradeluxe/dsh-plugin-github-md#readme",
+  "homepage": "https://github.com/Paradeluxe/dsh-live-markdown#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Paradeluxe/dsh-plugin-github-md.git"
+    "url": "git+https://github.com/Paradeluxe/dsh-live-markdown.git"
   },
   "bugs": {
-    "url": "https://github.com/Paradeluxe/dsh-plugin-github-md/issues"
+    "url": "https://github.com/Paradeluxe/dsh-live-markdown/issues"
   },
   "icon": "./icon.svg",
   "main": "./index.js",
