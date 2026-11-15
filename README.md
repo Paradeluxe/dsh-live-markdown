@@ -113,3 +113,9 @@ Vendored under `vendor/`, each under its own licence:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## 1.0.1（v1.0.1）
+
+- 把开发期的测量与设计记录并入仓库：`docs/SPEC.md`（逐轮实现记录与实测数据）、`docs/DESIGN.md`（架构决策）。
+- `scripts/render-smoke.mjs` 不再依赖外部目录，`npm install && npm run smoke` 即可运行。
+- 这个仓库同时也是开发用工作副本，验证环境通过 `link:` 指向它，避免"开发目录 / 发布仓库"两份代码漂移。
