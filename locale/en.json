@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Obsidian-style Markdown preview",
+    "description": "Live Preview for .md files in the document panel: blocks render in place and only the block (or selection) you edit shows Markdown source. Headings, lists, tasks, quotes, tables, images, callouts, embeds, math and folding all follow Obsidian measurements; double-click an image for the lightbox. Switch back to the official renderer from the preview header."
+  }
+}

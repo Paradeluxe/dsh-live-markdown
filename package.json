@@ -1,0 +1,77 @@
+{
+  "name": "dsh-plugin-github-md",
+  "version": "1.0.0",
+  "type": "module",
+  "private": false,
+  "description": "Obsidian-style Live Preview for Markdown in DSH: every block renders, only the block you edit shows its source. Tables, images (double-click lightbox), callouts, embeds, math, folding and editing keymap follow real Obsidian measurements.",
+  "license": "MIT",
+  "author": "Paradeluxe",
+  "homepage": "https://github.com/Paradeluxe/dsh-plugin-github-md#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Paradeluxe/dsh-plugin-github-md.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Paradeluxe/dsh-plugin-github-md/issues"
+  },
+  "icon": "./icon.svg",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "vendor",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "PARITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.zh.md",
+    "docs"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "markdown",
+    "obsidian",
+    "live-preview",
+    "editor"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview"
+      ]
+    }
+  },
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "smoke": "node scripts/render-smoke.mjs"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.11.1",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "esbuild": "^0.28.2"
+  }
+}

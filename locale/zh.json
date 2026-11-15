@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Obsidian 式 Markdown 实时预览",
+    "description": "文档面板里的 .md 实时预览：整篇按块渲染，只有正在编辑的块（或选区）显示 Markdown 源码。标题、列表、任务、引用、表格、图片、callout、嵌入笔记、公式与折叠均按 Obsidian 实测参数实现；双击图片打开灯箱。可从预览标题栏切回官方渲染器。"
+  }
+}
