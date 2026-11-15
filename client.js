@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.2'
+      const BUILD_STAMP = '1.0.3'
 
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
@@ -2195,6 +2195,9 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
       const cm6FoldMemory = new Map()
       /** 每个文件记住滚动位置：宿主重挂载或切走再回来时恢复，避免跳回顶部。 */
       const cm6ScrollMemory = new Map()
+      /** 宿主重挂载预览时，用上一帧的编辑器 DOM 克隆做占位，避免出现空白帧（闪烁）。 */
+      let cm6Placeholder = null
+      let cm6PlaceholderScroll = 0
 
       function MarkdownBody(props) {
         const { content } = props
@@ -2323,6 +2326,11 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           const api = window.__ghMdCm6LivePreview
           if (host === null || api === undefined || typeof api.createLivePreview !== 'function') return undefined
           if (cm6ViewRef.current !== null) return undefined
+          // 清掉上一帧留下的占位克隆（组件重挂载时 ref 已经把它塞进 host）
+          for (const stale of Array.from(host.querySelectorAll('[data-ghmd-placeholder="1"]'))) {
+            if (stale.parentNode !== null) stale.parentNode.removeChild(stale)
+          }
+          cm6Placeholder = null
           const view = api.createLivePreview({
             onStateChange: (state) => {
               if (typeof sourcePath !== 'string' || sourcePath === '') return
@@ -2558,6 +2566,13 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           } catch {}
           return () => {
             cm6ViewRef.current = null
+            // 重挂载前留一份"上一帧"的 DOM 克隆，新编辑器挂载前用它占位
+            try {
+              const dom = view.view.dom
+              cm6PlaceholderScroll = Math.round(view.view.scrollDOM.scrollTop)
+              cm6Placeholder = dom.cloneNode(true)
+              cm6Placeholder.dataset.ghmdPlaceholder = '1'
+            } catch {}
             try { if (typeof view.__ghMdScrollCleanup === 'function') view.__ghMdScrollCleanup() } catch {}
             try {
               const scroller = view.view.scrollDOM
@@ -2838,7 +2853,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           saveTimerRef.current = window.setTimeout(() => {
             saveTimerRef.current = null
             void persist()
-          }, 200)
+          }, 700)
         }
 
         const undo = () => {
@@ -3045,7 +3060,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           saveTimerRef.current = window.setTimeout(() => {
             saveTimerRef.current = null
             void persist()
-          }, 200)
+          }, 700)
         }
 
         const beginEdit = (index, caret) => {
@@ -3496,7 +3511,19 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           return h(React.Fragment, null,
             cm6Pill,
             h('div', {
-              ref: cm6HostRef,
+              ref: (node) => {
+                cm6HostRef.current = node
+                // 组件重挂载时 React 在 paint 前调用 ref：先把上一帧的克隆放回去，避免空白闪一下
+                if (node === null || node === undefined) return
+                if (cm6Placeholder === null) return
+                if (node.childNodes.length > 0) return
+                node.appendChild(cm6Placeholder)
+                try {
+                  const scroller = cm6Placeholder.querySelector('.cm-scroller')
+                  if (scroller !== null) scroller.scrollTop = cm6PlaceholderScroll
+                } catch {}
+                cm6Placeholder = null
+              },
               className: 'gh-md-document gh-md-cm6-document' + (String(docText ?? '').length > 60000 ? ' gh-md-cm6-long' : ''),
               'data-github-md': 'document',
             }))
