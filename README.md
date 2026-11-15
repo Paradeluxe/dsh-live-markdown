@@ -120,6 +120,8 @@ MIT — see [LICENSE](LICENSE).
 - `scripts/render-smoke.mjs` 不再依赖外部目录，`npm install && npm run smoke` 即可运行。
 - 这个仓库同时也是开发用工作副本，验证环境通过 `link:` 指向它，避免"开发目录 / 发布仓库"两份代码漂移。
 
+- 重建窗口内可能出现"占位克隆 + 真实编辑器"并存，已加去重（宿主里只保留真实编辑器），占位克隆 `pointer-events:none`，真实编辑器带 `data-ghmd-live` 标记。
+
 ## 1.0.2（v1.0.2）
 
 - 每个文件记住滚动位置：切走再回来、或宿主重挂载预览时，不再跳回文档顶部。

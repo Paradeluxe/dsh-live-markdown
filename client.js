@@ -2531,6 +2531,13 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             },
           })
           cm6ViewRef.current = view
+          try { view.view.dom.dataset.ghmdLive = '1' } catch {}
+          // 极端情况下占位克隆可能残留：确保宿主里只有这一个真实编辑器
+          try {
+            for (const candidate of Array.from(host.querySelectorAll('.cm-editor'))) {
+              if (candidate !== view.view.dom) candidate.remove()
+            }
+          } catch {}
           // 恢复上次滚动位置（宿主重挂载后不会跳回顶部），并持续记录
           try {
             const scroller = view.view.scrollDOM
