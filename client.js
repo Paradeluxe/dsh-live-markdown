@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.3'
+      const BUILD_STAMP = '1.0.4'
 
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
@@ -2194,10 +2194,16 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
       const cm6HistoryMemory = new Map()
       const cm6FoldMemory = new Map()
       /** 每个文件记住滚动位置：宿主重挂载或切走再回来时恢复，避免跳回顶部。 */
+      /** 保存防抖：默认 1500ms；集成测试可用 window.__ghMdSaveDelay 覆盖。 */
+      const saveDebounceDelay = () => {
+        const override = typeof window !== 'undefined' ? Number(window.__ghMdSaveDelay) : Number.NaN
+        return Number.isFinite(override) && override > 0 ? override : 1500
+      }
       const cm6ScrollMemory = new Map()
       /** 宿主重挂载预览时，用上一帧的编辑器 DOM 克隆做占位，避免出现空白帧（闪烁）。 */
       let cm6Placeholder = null
       let cm6PlaceholderScroll = 0
+      let cm6PlaceholderPath = ''
 
       function MarkdownBody(props) {
         const { content } = props
@@ -2579,6 +2585,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
               cm6PlaceholderScroll = Math.round(view.view.scrollDOM.scrollTop)
               cm6Placeholder = dom.cloneNode(true)
               cm6Placeholder.dataset.ghmdPlaceholder = '1'
+              cm6PlaceholderPath = typeof sourcePath === 'string' ? sourcePath : ''
             } catch {}
             try { if (typeof view.__ghMdScrollCleanup === 'function') view.__ghMdScrollCleanup() } catch {}
             try {
@@ -2860,7 +2867,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           saveTimerRef.current = window.setTimeout(() => {
             saveTimerRef.current = null
             void persist()
-          }, 700)
+          }, saveDebounceDelay())
         }
 
         const undo = () => {
@@ -3012,6 +3019,27 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           }, delay)
         }
 
+        /** 关闭窗口/切后台时的兜底保存（sendBeacon 不受导航取消影响）。 */
+        const flushBeacon = () => {
+          if (!dirtyRef.current) return
+          const path = sourcePathRef.current
+          if (typeof path !== 'string' || path === '' || sessionId === '' || !exactRef.current) return
+          const body = docTextRef.current
+          if (body === savedTextRef.current) return
+          try {
+            const payload = JSON.stringify({ sessionId, path, content: body })
+            const blob = new Blob([payload], { type: 'application/json' })
+            if (navigator.sendBeacon !== undefined) navigator.sendBeacon(WORKBENCH_API + 'save', blob)
+            pendingSaveTextRef.current = body
+          } catch {}
+        }
+
+        React.useEffect(() => {
+          const onHide = () => { flushBeacon() }
+          window.addEventListener('pagehide', onHide)
+          return () => { window.removeEventListener('pagehide', onHide); flushBeacon() }
+        }, [])
+
         const persist = async () => {
           const path = sourcePathRef.current
           if (typeof path !== 'string' || path === '' || sessionId === '' || !exactRef.current) {
@@ -3067,7 +3095,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           saveTimerRef.current = window.setTimeout(() => {
             saveTimerRef.current = null
             void persist()
-          }, 700)
+          }, saveDebounceDelay())
         }
 
         const beginEdit = (index, caret) => {
@@ -3523,6 +3551,11 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
                 // 组件重挂载时 React 在 paint 前调用 ref：先把上一帧的克隆放回去，避免空白闪一下
                 if (node === null || node === undefined) return
                 if (cm6Placeholder === null) return
+                // 占位快照只对同一个文件有意义（切文件时用旧的会闪错内容）
+                if (cm6PlaceholderPath !== (typeof sourcePath === 'string' ? sourcePath : '')) {
+                  cm6Placeholder = null
+                  return
+                }
                 if (node.childNodes.length > 0) return
                 node.appendChild(cm6Placeholder)
                 try {
