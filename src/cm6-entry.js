@@ -2446,6 +2446,31 @@ export function createLivePreview(options) {
   host.view = view
   activeHost = host
   updateDecorateWindow(view)
+  // 首帧可能量不到真实尺寸（面板还没布局/隐藏）：尺寸变化后重新计算窗口并重建装饰。
+  let resizeObserver = null
+  let resizeFrame = 0
+  try {
+    let lastWidth = 0
+    let lastHeight = 0
+    resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry === undefined) return
+      const width = Math.round(entry.contentRect.width)
+      const height = Math.round(entry.contentRect.height)
+      if (width === lastWidth && height === lastHeight) return
+      lastWidth = width
+      lastHeight = height
+      if (resizeFrame !== 0) return
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = 0
+        try {
+          updateDecorateWindow(view)
+          view.dispatch({ effects: rebuildEffect.of(null) })
+        } catch {}
+      })
+    })
+    resizeObserver.observe(view.dom)
+  } catch {}
   setEditorFocused(view.hasFocus === true)
   try {
     view.dispatch({ effects: rebuildEffect.of(null) })
@@ -2466,6 +2491,10 @@ export function createLivePreview(options) {
     flushChanges,
     destroy() {
       flushChanges()
+      try {
+        if (resizeObserver !== null) resizeObserver.disconnect()
+        if (resizeFrame !== 0) window.cancelAnimationFrame(resizeFrame)
+      } catch {}
       view.destroy()
     },
   }

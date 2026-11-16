@@ -2253,3 +2253,14 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 交互：行悬停或折叠时 `opacity: 1`，悬停时 4% 圆形底；颜色走 `--dsw-alias-label-tertiary/secondary/primary`；
 - callout 标题箭头复用同一套图标；
 - 实测：h1–h6、无序、有序、任务全部与文字中心偏差 0–0.5px；点击折叠/展开正常（折叠后可见行 2 行、旋转 0°）。
+
+---
+
+## 121. v1.0.7：首帧样式修复
+
+- 现象：重启 DSH 后第一次打开文档，会先出现一版「错误样式」再变成 Live Preview；
+- 根因 1（时序）：ensureDocumentStyle 原在 useEffect，而 CM6 在 useLayoutEffect 创建 → 首帧无文档 CSS；修法：创建前注入 + 样式 effect 改 layout effect；
+- 根因 2（回退）：cm6Loaded 初始 false，即使 bundle 已就绪也先渲染静态 Markdown；修法：模块初始化预热 bundle/vendor + cm6Loaded 同步初始化；
+- 根因 3（异步可写性）：读取确认可写之前渲染静态排版；修法：新增 editableKnown，确认前渲染与编辑器同容器的空白占位（4s 超时回退静态）；
+- 兜底：ResizeObserver 监听编辑器尺寸，变化时 updateDecorateWindow + rebuildEffect（首次测量为 0 或面板展开时自动修正装饰窗口）；
+- 实测：打开文档后第一帧即 editor: true、staticBlocks: 0；预热在打开前完成；jsdom 集成测试保持旧行为（用 UA 判定，避免测试环境无 vendor 路由时空白）。

@@ -188,3 +188,15 @@ MIT — see [LICENSE](LICENSE).
 - callout 标题栏的折叠箭头也换成同一套 SVG。
 
 ![折叠箭头](docs/screenshots/chevron.png)
+
+## 1.0.7（v1.0.7）：修掉「重启后第一次打开样式不对」
+
+原因有三层，都在首帧上：
+
+1. **文档 CSS 在首帧之后才注入**：可写文件的文档样式（`style[data-github-md]`）原先在 `useEffect`（paint 之后）注入，而 CM6 编辑器在 `useLayoutEffect`（paint 之前）就创建了 → 第一帧按「无样式布局」渲染。现在**创建编辑器之前先注入 CSS**，样式 effect 也改成 layout effect。
+2. **首帧先渲染静态排版**：`cm6Loaded` 初始为 `false`，即使 CM6 bundle 已就绪，第一次也会先画一版静态 Markdown（块间距、表格、标题排版都与 Live Preview 不同）再切换。现在 bundle 在**插件加载时就预热**，且 `cm6Loaded` 用 `window.__ghMdCm6LivePreview !== undefined` 同步初始化。
+3. **可写性未确认时仍画静态排版**：确认可写是一次异步读取，确认前现在渲染与编辑器**同结构的空白占位**（同样的 `gh-md-document gh-md-cm6-document` 容器与 padding），读取完成直接挂编辑器，不再出现静态→编辑器的跳变。bundle 4 秒仍未加载出来则回退静态渲染，避免一直空白。
+
+另外补了 **ResizeObserver**：编辑器尺寸变化（面板展开、窗口缩放、首次测量为 0）时重算装饰窗口并重建，避免首次挂载只渲染前几行的降级排版。
+
+实测（真实 GUI，逐帧采样）：打开文档后**第一帧就是 CM6 Live Preview**（`editor: true`、`staticBlocks: 0`），`probeStaticSeen: false`；预热在打开文档前已完成（`window.__ghMdCm6LivePreview` 已定义、bundle script 已加载）。

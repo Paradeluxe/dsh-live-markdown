@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.6'
+      const BUILD_STAMP = '1.0.7'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -918,6 +918,30 @@ function installImageLightbox() {
       /** vendor 脚本的加载结果；同一页面只加载一次。 */
       let vendorPromise = null
       let codeMirrorPromise = null
+
+      /** CM6 Live Preview bundle 的加载结果：模块初始化时预热，避免首次打开先渲染静态版本。 */
+      let livePreviewScriptPromise = null
+
+      /** 预热 CM6 bundle（幂等）。 */
+      function ensureLivePreviewScript() {
+        if (livePreviewScriptPromise !== null) return livePreviewScriptPromise
+        try {
+          if (typeof window !== 'undefined' && window.__ghMdCm6Disable === true) {
+            livePreviewScriptPromise = Promise.resolve()
+            return livePreviewScriptPromise
+          }
+          const base = new URL(ASSET_PREFIX, document.baseURI)
+          const url = new URL('cm6-live-preview.js', base).href
+          livePreviewScriptPromise = loadScriptOnce(url).catch((error) => {
+            livePreviewScriptPromise = null
+            throw error
+          })
+        } catch (error) {
+          livePreviewScriptPromise = null
+          return Promise.reject(error)
+        }
+        return livePreviewScriptPromise
+      }
 
       /** Shiki 的加载结果；只在文档里存在围栏代码时才触发。 */
       let shikiPromise = null
@@ -2228,8 +2252,17 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const cm6BlocksRendererRef = React.useRef(null)
         const cm6ShikiRef = React.useRef(null)
         const cm6ViewRef = React.useRef(null)
-        const [cm6Loaded, setCm6Loaded] = React.useState(false)
+        // 首帧陷阱：bundle 已预热时直接以"已加载"初始化，避免先画一帧静态渲染再切换成编辑器。
+        const [cm6Loaded, setCm6Loaded] = React.useState(() => {
+          try {
+            return typeof window !== 'undefined' && window.__ghMdCm6Disable !== true && window.__ghMdCm6LivePreview !== undefined
+          } catch {
+            return false
+          }
+        })
         const [editable, setEditable] = React.useState(false)
+        /** 是否已确认「可写/只读」：确认前不要先渲染静态排版（与编辑器排版不同，会被看成样式错误）。 */
+        const [editableKnown, setEditableKnown] = React.useState(false)
         const [saveState, setSaveState] = React.useState('idle')
         const [saveMessage, setSaveMessage] = React.useState('')
         const docTextRef = React.useRef(streamText)
@@ -2318,9 +2351,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           let alive = true
           // 测试环境可以关掉 CM6（旧 harness 仍验证 CM5 fallback）。
           if (window.__ghMdCm6Disable === true) return undefined
-          const base = new URL(ASSET_PREFIX, document.baseURI)
-          const url = new URL('cm6-live-preview.js', base).href
-          loadScriptOnce(url).then(() => {
+          ensureLivePreviewScript().then(() => {
             if (alive && window.__ghMdCm6LivePreview !== undefined) setCm6Loaded(true)
           }, () => {})
           return () => { alive = false }
@@ -2332,6 +2363,10 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const cm6MountEffect = (typeof navigator !== 'undefined' && /jsdom/iu.test(String(navigator.userAgent ?? ''))) ? React.useEffect : React.useLayoutEffect
         cm6MountEffect(() => {
           if (!cm6Loaded || !editable) return undefined
+          // 首帧陷阱：CM6 在 paint 前创建，而文档 CSS 原先在 useEffect（paint 后）才注入，
+          // 重启后第一次打开会因为"无样式布局"量错尺寸/样式。这里先注入再建编辑器。
+          ensureDocumentStyle()
+
           const host = cm6HostRef.current
           const api = window.__ghMdCm6LivePreview
           if (host === null || api === undefined || typeof api.createLivePreview !== 'function') return undefined
@@ -2742,7 +2777,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           }
         }, [vendor])
 
-        React.useEffect(() => {
+        React.useLayoutEffect(() => {
           ensureDocumentStyle()
         }, [])
 
@@ -2765,6 +2800,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           workbenchRequest('read', { sessionId, path: sourcePath }).then((data) => {
             if (!alive || !aliveRef.current) return
             exactRef.current = true
+            setEditableKnown(true)
             setEditable(true)
             if (editingRef.current !== null || dirtyRef.current) return
             const rawText = String(data.content ?? '')
@@ -2778,6 +2814,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
               setDocText(exactText)
             }
           }, () => {
+            if (alive) setEditableKnown(true)
             if (alive) exactRef.current = false
           })
           return () => { alive = false }
@@ -3583,7 +3620,20 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           return h('div', { className: 'gh-md-status', 'data-tone': 'error' }, (t !== undefined ? t('failed') : 'Markdown 渲染器加载失败') + '：' + String(failure.message ?? failure))
         }
         if (content === null || content === undefined || content.kind !== 'text') return null
-        if (cm6Loaded && editable) {
+        // 首次打开（尤其重启后第一次）：可写性未确认前，用与编辑器同一套容器的空白态占位，
+        // 避免先渲染一版静态排版、随后切换成 Live Preview 造成的“错误样式”观感。
+        // 首帧时 sourcePath/sessionId 可能还没填好，用 content 判断“这是一个可写的文本文档”。
+        const cm6WritableCandidate = (typeof sourcePath === 'string' && sourcePath !== '' && sessionId !== '')
+          || (content !== null && content !== undefined && content.kind === 'text')
+        // 仅真实浏览器：jsdom 集成测试与显式禁用 CM6 时保持旧的"先静态后切换"行为。
+        const cm6FirstOpenGuard = typeof navigator !== 'undefined'
+          && /jsdom/iu.test(String(navigator.userAgent)) === false
+          && typeof window !== 'undefined'
+          && window.__ghMdCm6Disable !== true
+        const cm6WaitingForReady = cm6FirstOpenGuard && cm6WritableCandidate && ((cm6Loaded === false && cm6GaveUp === false) || (editable === false && editableKnown === false))
+        // 首次打开（尤其重启后第一次）：只要还没准备好可用编辑器，就用与编辑器同一套容器的空白态占位，
+        // 绝不先渲染一版静态排版再切换 —— 那正是“第一次显示样式错误”的来源。
+        if ((cm6Loaded && editable) || cm6WaitingForReady) {
           const cm6Pill = saveState === 'idle'
             ? null
             : h('button', {
@@ -3794,6 +3844,10 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
       try {
         ensureDocumentStyle()
         applySettings(readSettings())
+        // 预热：重启后第一次打开文档时，CM6 bundle 与 vendor 已经就绪，
+        // 不会再先渲染一帧"静态版本"再切换成编辑器。
+        ensureLivePreviewScript().catch(() => {})
+        ensureVendor().catch(() => {})
       } catch {
         // 非浏览器环境忽略。
       }
