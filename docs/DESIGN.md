@@ -2273,3 +2273,14 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 根因：__ghMdOpenLink 复用保存状态条（setSaveState('saved') + setSaveMessage(链接已复制…)），而状态条 saved 分支只渲染固定文案「已保存」，saveMessage 只在 error 分支使用；
 - 修法：新增 copyHint 状态与 .gh-md-copy-hint 提示条（链接已复制 + 地址，2s 自动消失，位于保存条上方），链接点击不再触碰 saveState；
 - 验证：点链接 → 只有复制提示、无保存条、剪贴板正确、磁盘未变；真实保存仍显示 保存中… → 已保存。
+
+---
+
+## 123. v1.0.9：链接跳转
+
+- 旧行为：__ghMdOpenLink 只复制链接（沙箱里没有导航接口时期的权宜之计）；
+- 现在：body 注入的 props.useTabInfo() → tab.actions.openResource(address, { replaceTab: true }) 实现同面板跳转；
+- 地址：以当前标签的 resourceAddress 为 base，new URL(target, base).href；wiki 链接（无扩展名）补 .md，保留 #锚点；
+- 外部链接：window.open(url, "_blank") + opener=null；返回 null 视为被拦截，才退回复制提示；
+- Ctrl/Cmd+Click：不传 replaceTab → 同一面板新标签打开；
+- 实测：相对链接/ wiki 前后跳转均生效且标签数保持 1；外部链接打开新页面且无复制提示。

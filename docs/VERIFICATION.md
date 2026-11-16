@@ -86,6 +86,17 @@ Clicking a rendered link is asserted in a real page (with clipboard permissions 
 - no `.gh-md-save-pill` appears and the file on disk is unchanged;
 - a real save still shows 保存中… then 已保存.
 
+## Link navigation (1.0.9)
+
+Asserted in a real page by clicking rendered anchors:
+
+| Action | Observed |
+|---|---|
+| relative Markdown link | pane switches to the target document, document tab count stays 1 |
+| [[wikilink]] without extension | resolves to the target .md and switches |
+| wikilink inside the target back to the source | switches back |
+| external https link | opens a browser page at the target URL and shows no copy hint |
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

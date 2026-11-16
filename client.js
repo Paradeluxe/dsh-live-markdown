@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.8'
+      const BUILD_STAMP = '1.0.9'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -2236,6 +2236,17 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const t = props.t
         const quoteSelection = props.quoteSelection
         const sessionId = typeof props.sessionId === 'string' ? props.sessionId : ''
+        // 面板内跳转：body 注入的 useTabInfo 提供 tab.actions.openResource（同面板替换当前预览）。
+        const useTabInfo = typeof props.useTabInfo === 'function' ? props.useTabInfo : null
+        let tabActions = null
+        try {
+          const tabInfo = useTabInfo === null ? null : useTabInfo()
+          tabActions = tabInfo !== null && tabInfo !== undefined && tabInfo.tab !== undefined ? tabInfo.tab.actions ?? null : null
+        } catch {}
+        const tabActionsRef = React.useRef(null)
+        tabActionsRef.current = tabActions
+        const resourceAddressRef = React.useRef(typeof props.resourceAddress === 'string' ? props.resourceAddress : '')
+        resourceAddressRef.current = typeof props.resourceAddress === 'string' ? props.resourceAddress : ''
         const streamText = content !== null && content !== undefined && content.kind === 'text' && typeof content.text === 'string' ? content.text : ''
         const eof = content !== null && content !== undefined && content.kind === 'text' && content.eof === true
         const [quoteTarget, setQuoteTarget] = React.useState(null)
@@ -2752,16 +2763,48 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         // CM6 里点击渲染态链接：复制到剪贴板并用保存提示条显示（DSH 沙箱里不直接导航）。
         React.useEffect(() => {
           window.__ghMdOpenLink = (href, newTab) => {
-            try {
-              if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') void navigator.clipboard.writeText(href)
-            } catch {}
-            // 链接点击只给"已复制"提示，不再借用保存状态条（以前会误显示"已保存"）。
-            setCopyHint({ text: newTab === true ? '链接已复制（Ctrl+Click：新面板）' : '链接已复制', detail: href })
-            if (copyHintTimerRef.current !== null) window.clearTimeout(copyHintTimerRef.current)
-            copyHintTimerRef.current = window.setTimeout(() => {
-              copyHintTimerRef.current = null
-              setCopyHint(null)
-            }, 2000)
+            const raw = typeof href === 'string' ? href.trim() : ''
+            if (raw === '') return
+            const showCopyHint = (text) => {
+              try {
+                if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') void navigator.clipboard.writeText(raw)
+              } catch {}
+              setCopyHint({ text, detail: raw })
+              if (copyHintTimerRef.current !== null) window.clearTimeout(copyHintTimerRef.current)
+              copyHintTimerRef.current = window.setTimeout(() => {
+                copyHintTimerRef.current = null
+                setCopyHint(null)
+              }, 2000)
+            }
+            // 外部链接：交给系统浏览器打开（不再只复制）。
+            if (/^(?:https?|mailto):/iu.test(raw)) {
+              let opened = null
+              try { opened = window.open(raw, '_blank') } catch { opened = null }
+              if (opened !== null && opened !== undefined) {
+                try { opened.opener = null } catch {}
+              } else {
+                showCopyHint('链接已复制（浏览器拦截了打开）')
+              }
+              return
+            }
+            // 文档内链接 / wiki 链接：在右侧预览面板内跳转。
+            const actions = tabActionsRef.current
+            const base = resourceAddressRef.current
+            if (actions !== null && actions !== undefined && typeof actions.openResource === 'function' && base !== '') {
+              try {
+                let target = raw
+                // wiki 链接没有扩展名：补 .md；带 #锚点 的保留锚点。
+                const hashIndex = target.indexOf('#')
+                const hash = hashIndex >= 0 ? target.slice(hashIndex) : ''
+                const pathPart = hashIndex >= 0 ? target.slice(0, hashIndex) : target
+                if (/\.[a-z0-9]{1,8}$/iu.test(pathPart) === false) target = pathPart + '.md' + hash
+                const address = new URL(target, base).href
+                if (address.startsWith('dsh-resource:') === false) throw new Error('not a resource address')
+                actions.openResource(address, newTab === true ? {} : { replaceTab: true })
+                return
+              } catch {}
+            }
+            showCopyHint('链接已复制')
           }
           return () => {
             window.__ghMdOpenLink = undefined
