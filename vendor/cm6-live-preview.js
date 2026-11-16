@@ -67,9 +67,9 @@ var __ghMdCm6LivePreview=(()=>{var ds=Object.defineProperty;var wp=Object.getOwn
 .gh-md-cm6-lp .gh-md-cm6-table-scroll { padding: 16px 0; overflow-x: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: var(--gh-md-table-w, 100%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: var(--gh-md-table-w, 100%); cursor: e-resize; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
 .gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: break-word; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
 .gh-md-cm6-lp .gh-md-cm6-table th { background: transparent; font-weight: 600; }

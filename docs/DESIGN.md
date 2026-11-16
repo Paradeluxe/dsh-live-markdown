@@ -2336,3 +2336,12 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 平移：放大后 `pointerdown` + 指针捕获，记录移动距离；`click` 阶段若移动 > 4px 则吞掉，避免拖动结束时触发"点背景关闭"；
 - 复位：双击图片 / 按 `0` / 窗口 resize；关闭：`Esc` / 点背景（原有逻辑）；
 - CM6 图片点击复用客户端灯箱：`window.__ghMdOpenImageLightbox`，bundle 的 `.gh-md-cm6-image-fullscreen` 仅作兜底。
+
+---
+
+## 129. v1.1.4：宽表格的列加号可见性
+
+- 现象：表格占满内容宽度时看不到「加列」的 `+`；
+- 根因：`.gh-md-cm6-table-add-col` 的 `left` 等于表格宽度；当表格宽度 = 内容宽度时，16px 竖条整条落在 `.cm-content` 可见区之外（被滚动容器裁掉）；
+- 修复：`left: min(var(--gh-md-table-w, 100%), calc(100% - 18px))`，悬停时加 `background` + `box-shadow` 让它在覆盖表格边缘时仍清晰；
+- 回归：`gui-table-add-check.mjs` 增加宽表格用例，断言列加号 `right <= wrapper.right`、hover 可见、点击后列数 +1。

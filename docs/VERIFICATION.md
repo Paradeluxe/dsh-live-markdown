@@ -132,6 +132,13 @@ Obsidian 1.15.1 was measured first (CDP): a full-width 16px plus strip below the
 - dragging a zoomed image changes the translate to (60, 40) and does not close the overlay;
 - Escape closes it, with zero page errors.
 
+## Wide tables (1.1.4)
+
+A table that spans the full content width used to clip the add-column strip. The check now covers it:
+
+- with a 5-column table filling the panel width, the column plus stays inside the wrapper (`right <= wrapper.right`) and is visible on hover;
+- clicking it still appends a column (5 → 6).
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
