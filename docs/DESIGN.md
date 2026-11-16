@@ -2231,3 +2231,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 
 - 防抖 1500ms 意味着关闭窗口可能丢最后 1.5 秒输入；改用 `pagehide` + `navigator.sendBeacon` 把待保存内容 POST 到 `/github-md/workspace/save`（不受导航取消影响），组件卸载时也 flush；
 - 实测：把防抖临时改成 60 秒后输入 `BEACON-TAIL`，立即触发 `pagehide`，文件仍然落盘。
+
+---
+
+## 119. v1.0.5：可见期间零写盘 = 零重建 = 零闪烁
+
+- 宿主的预览重建由"文件变化"触发；插件无法让宿主忽略自己的写入（`workspaceFiles` 只有 read/stat/list/changes，没有写接口），所以把写盘挪到看不见的时机；
+- `scheduleSave`：可见（`document.hidden === false && document.hasFocus() === true`）时只记 dirty 并每 1.5s 复核，不写；不可见时立刻 `persist()`；
+- `window.blur` / `visibilitychange` / 标签页卸载 / `pagehide` 都会 flush；`Ctrl+S` 仍立刻写；
+- 可见兜底 30 分钟一次（防崩溃丢内容），jsdom 与测试覆盖模式（`window.__ghMdSaveDelay`）保持旧的"到点即写"行为；
+- 实测：可见打字 350 帧，编辑器节点身份变化 0、空白帧 0、滚动位移 0；失焦后 1 秒内落盘。

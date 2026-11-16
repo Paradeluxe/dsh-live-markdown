@@ -39,6 +39,14 @@ Known-flaky spots are handled by re-running a script once against a fresh page a
 | Preview-rebuild flicker | Frame sampling with `requestAnimationFrame`: 413 frames while typing through saves → 3 blank frames (initial load only), 0 stale placeholders |
 | No lost keystrokes | Type then trigger `pagehide` with the autosave debounce temporarily raised to 60 s: the file still receives the final characters |
 
+## Flicker (1.0.5)
+
+The preview rebuild is triggered by any file change, and the plugin cannot make the host ignore its own writes. 1.0.5 therefore never writes while the window is visible:
+
+- Frame sampling while typing in a visible window: **350 frames, 0 editor identity changes, 0 blank frames, 0 scroll shifts**.
+- The first save lands within ~1 s of the window losing focus (blur), on Ctrl+S, on preview-tab close, and on pagehide.
+- Fallback: one write after 30 minutes of continuous visible typing, as crash protection.
+
 ## Save latency (measured)
 
 The editor has no save button; it saves automatically. Measured by typing, then polling the file on disk from the test script:

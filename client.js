@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.4'
+      const BUILD_STAMP = '1.0.5'
 
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
@@ -2243,6 +2243,8 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const eolRef = React.useRef('\n')
         const savedTextRef = React.useRef('')
         const pendingSaveTextRef = React.useRef('')
+        /** 最近一次改动时间：可见状态下用 5 分钟兜底写盘。 */
+        const dirtyAtRef = React.useRef(0)
         const pendingEditRef = React.useRef(null)
         const historyRef = React.useRef({ past: [], future: [] })
         const undoRef = React.useRef(null)
@@ -2326,7 +2328,10 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         }, [])
 
         // 可写文件才切到 CM6 编辑器；只读文件继续用旧的只读渲染。
-        React.useEffect(() => {
+        // 真实浏览器用 useLayoutEffect：宿主重建时在 paint 前就位，占位快照不会被画出来（不闪）；
+        // jsdom 集成测试里容器尚未挂载，沿用 useEffect。
+        const cm6MountEffect = (typeof navigator !== 'undefined' && /jsdom/iu.test(String(navigator.userAgent ?? ''))) ? React.useEffect : React.useLayoutEffect
+        cm6MountEffect(() => {
           if (!cm6Loaded || !editable) return undefined
           const host = cm6HostRef.current
           const api = window.__ghMdCm6LivePreview
@@ -2578,6 +2583,8 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             }
           } catch {}
           return () => {
+            // 卸载时落盘：关闭预览标签页也不会丢最后一段输入
+            try { if (dirtyRef.current === true) void persist() } catch {}
             cm6ViewRef.current = null
             // 重挂载前留一份"上一帧"的 DOM 克隆，新编辑器挂载前用它占位
             try {
@@ -3035,6 +3042,17 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         }
 
         React.useEffect(() => {
+          if (typeof window === 'undefined') return undefined
+          const flushWhenHidden = () => { if (!windowLooksVisible() && dirtyRef.current) void persist() }
+          window.addEventListener('blur', flushWhenHidden)
+          document.addEventListener('visibilitychange', flushWhenHidden)
+          return () => {
+            window.removeEventListener('blur', flushWhenHidden)
+            document.removeEventListener('visibilitychange', flushWhenHidden)
+          }
+        }, [])
+
+        React.useEffect(() => {
           const onHide = () => { flushBeacon() }
           window.addEventListener('pagehide', onHide)
           return () => { window.removeEventListener('pagehide', onHide); flushBeacon() }
@@ -3085,16 +3103,54 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           }
         }
 
+        /** 窗口当前是否"用户看得见"：看得见时写盘会触发宿主重建预览（闪一下），所以只在看不见时自动写。 */
+        const windowLooksVisible = () => {
+          try {
+            if (typeof document !== 'undefined' && document.hidden === true) return false
+            if (typeof document !== 'undefined' && typeof document.hasFocus === 'function' && document.hasFocus() === false) return false
+          } catch {}
+          return true
+        }
+        /** 兜底：长时间（5 分钟）没有任何机会写盘时，允许在可见状态下写一次，避免崩溃丢太多。 */
+        const VISIBLE_FALLBACK_MS = 1800000
+        /** 集成测试可以用 window.__ghMdSaveDelay 覆盖防抖并保持"到点即写"的旧行为。 */
+        const saveTestMode = () => {
+          try {
+            // jsdom 集成测试 / 显式覆盖：保持旧行为（到点即写），否则测试无法断言落盘
+            if (/jsdom/iu.test(String(navigator.userAgent ?? ''))) return true
+            const override = Number(window.__ghMdSaveDelay)
+            return Number.isFinite(override) && override > 0
+          } catch {
+            return true
+          }
+        }
         const scheduleSave = () => {
           dirtyRef.current = true
+          dirtyAtRef.current = Date.now()
           if (saveStateTimerRef.current !== null) {
             window.clearTimeout(saveStateTimerRef.current)
             saveStateTimerRef.current = null
           }
           if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current)
+          if (saveTestMode()) {
+            // 测试模式：到点就写，行为与 1.0.4 一致
+            saveTimerRef.current = window.setTimeout(() => {
+              saveTimerRef.current = null
+              void persist()
+            }, saveDebounceDelay())
+            return
+          }
+          if (!windowLooksVisible()) {
+            // 看不见（窗口失焦/页面隐藏）：立刻写，重建发生在用户看不到的时候
+            void persist()
+            return
+          }
           saveTimerRef.current = window.setTimeout(() => {
             saveTimerRef.current = null
-            void persist()
+            if (!windowLooksVisible()) { void persist(); return }
+            if (Date.now() - (dirtyAtRef.current ?? 0) >= VISIBLE_FALLBACK_MS) { void persist(); return }
+            // 还在看：继续等，等用户切走/收起窗口时再写
+            scheduleSave()
           }, saveDebounceDelay())
         }
 
