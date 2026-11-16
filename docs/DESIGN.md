@@ -2345,3 +2345,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 根因：`.gh-md-cm6-table-add-col` 的 `left` 等于表格宽度；当表格宽度 = 内容宽度时，16px 竖条整条落在 `.cm-content` 可见区之外（被滚动容器裁掉）；
 - 修复：`left: min(var(--gh-md-table-w, 100%), calc(100% - 18px))`，悬停时加 `background` + `box-shadow` 让它在覆盖表格边缘时仍清晰；
 - 回归：`gui-table-add-check.mjs` 增加宽表格用例，断言列加号 `right <= wrapper.right`、hover 可见、点击后列数 +1。
+
+---
+
+## 130. v1.1.5：行/列选择与删除
+
+- 手柄：`.gh-md-cm6-table-row-handle`（每行左侧 16px，竖排 grip）与 `.gh-md-cm6-table-col-handle`（每列上方 16px，横排 grip），按 `tr`/`th` 的真实 `getBoundingClientRect()` 相对表格定位；ResizeObserver + scroll 时重排；
+- 悬停表格时手柄 `opacity: .85`，选中时高亮（info 色 + 12% 底色），对应单元格加 `.gh-md-cm6-table-cell-selected`（10% info 底色）；
+- 交互：点手柄选中（手柄 `tabindex=0` 并 focus，保证按键落在 wrapper 内）；wrapper 的 keydown 捕获 `Backspace`/`Delete` 删除、`Esc` 取消；点表格其它位置取消；
+- 删除：复用 `applyEdit`（源码态 → 文本变更 → 渲染态）；只剩 1 列时拒绝；删除后清除选择；
+- 注意：手柄仅用于单击选择，未实现 Obsidian 的拖拽排序。

@@ -56,6 +56,11 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: var(--gh-md-table-w, 100%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table-col-handle { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); background: transparent; border-radius: 4px; opacity: 0; pointer-events: none; cursor: pointer; z-index: 2; transition: opacity .12s ease, color .12s ease, background-color .12s ease; }
+.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
+.gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
+.gh-md-cm6-lp .gh-md-cm6-table .gh-md-cm6-table-cell-selected { background: rgb(9 105 218 / 10%) !important; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
 .gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: break-word; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
@@ -649,13 +654,151 @@ class TableWidget extends WidgetType {
     colButton.addEventListener('click', addColumn)
     wrapper.appendChild(rowButton)
     wrapper.appendChild(colButton)
+
+    // ---- Obsidian 风格的行/列选择手柄：点一下选中整行/整列，再按 Backspace / Delete 删除 ----
+    const gripVertical = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></svg>'
+    const gripHorizontal = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="10" r="1.1"/><circle cx="8" cy="6" r="1.1"/><circle cx="8" cy="10" r="1.1"/><circle cx="12" cy="6" r="1.1"/><circle cx="12" cy="10" r="1.1"/></svg>'
+    let selection = null
+    const rowHandles = []
+    const colHandles = []
+    const clearSelection = () => {
+      if (selection === null) return
+      selection = null
+      for (const cell of wrapper.querySelectorAll('th,td')) cell.classList.remove('gh-md-cm6-table-cell-selected')
+      for (const handle of rowHandles) handle.classList.remove('is-selected')
+      for (const handle of colHandles) handle.classList.remove('is-selected')
+      wrapper.dataset.mdSelection = ''
+    }
+    const applySelection = (kind, index) => {
+      for (const cell of wrapper.querySelectorAll('th,td')) cell.classList.remove('gh-md-cm6-table-cell-selected')
+      for (const handle of rowHandles) handle.classList.remove('is-selected')
+      for (const handle of colHandles) handle.classList.remove('is-selected')
+      selection = { kind, index }
+      wrapper.dataset.mdSelection = kind
+      const cells = wrapper.querySelectorAll(kind === 'row' ? 'th,td' : 'th,td')
+      for (const cell of cells) {
+        if (kind === 'row' && Number(cell.dataset.row) === index) cell.classList.add('gh-md-cm6-table-cell-selected')
+        if (kind === 'col' && Number(cell.dataset.cell) === index) cell.classList.add('gh-md-cm6-table-cell-selected')
+      }
+      const handles = kind === 'row' ? rowHandles : colHandles
+      for (const handle of handles) {
+        if (Number(handle.dataset.index) === index) handle.classList.add('is-selected')
+      }
+    }
+    const layoutHandles = () => {
+      try {
+        const wrapperRect = wrapper.getBoundingClientRect()
+        const tableRect = table.getBoundingClientRect()
+        const rowNodes = Array.from(table.querySelectorAll('tr'))
+        rowHandles.forEach((handle) => handle.remove())
+        rowHandles.length = 0
+        rowNodes.forEach((row, index) => {
+          const rect = row.getBoundingClientRect()
+          const handle = document.createElement('div')
+          handle.className = 'gh-md-cm6-table-row-handle'
+          handle.dataset.index = String(index)
+          handle.setAttribute('role', 'button')
+          handle.setAttribute('tabindex', '0')
+          handle.setAttribute('aria-label', '选择整行')
+          handle.setAttribute('title', '选择整行（Backspace 删除）')
+          handle.innerHTML = gripVertical
+          handle.style.top = (rect.top - wrapperRect.top) + 'px'
+          handle.style.left = (rect.left - wrapperRect.left - 16) + 'px'
+          handle.style.height = rect.height + 'px'
+          if (selection !== null && selection.kind === 'row' && selection.index === index) handle.classList.add('is-selected')
+          handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+          handle.addEventListener('click', (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            applySelection('row', index)
+            handle.focus()
+          })
+          wrapper.appendChild(handle)
+          rowHandles.push(handle)
+        })
+        const headerCells = Array.from(table.querySelectorAll('thead tr:first-child th'))
+        colHandles.forEach((handle) => handle.remove())
+        colHandles.length = 0
+        headerCells.forEach((cell, index) => {
+          const rect = cell.getBoundingClientRect()
+          const handle = document.createElement('div')
+          handle.className = 'gh-md-cm6-table-col-handle'
+          handle.dataset.index = String(index)
+          handle.setAttribute('role', 'button')
+          handle.setAttribute('tabindex', '0')
+          handle.setAttribute('aria-label', '选择整列')
+          handle.setAttribute('title', '选择整列（Backspace 删除）')
+          handle.innerHTML = gripHorizontal
+          handle.style.left = (rect.left - wrapperRect.left) + 'px'
+          handle.style.top = (tableRect.top - wrapperRect.top - 16) + 'px'
+          handle.style.width = rect.width + 'px'
+          if (selection !== null && selection.kind === 'col' && selection.index === index) handle.classList.add('is-selected')
+          handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+          handle.addEventListener('click', (event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            applySelection('col', index)
+            handle.focus()
+          })
+          wrapper.appendChild(handle)
+          colHandles.push(handle)
+        })
+      } catch {}
+    }
+    const deleteSelection = () => {
+      if (selection === null) return false
+      const target = selection
+      let applied = false
+      if (target.kind === 'row') {
+        applyEdit((rows) => {
+          if (rows.length <= 1) return false
+          if (target.index < 0 || target.index >= rows.length) return false
+          rows.splice(target.index, 1)
+          applied = true
+          return true
+        })
+      } else {
+        applyEdit((rows, separator) => {
+          if ((rows[0] ?? []).length <= 1) return false
+          for (const row of rows) row.splice(target.index, 1)
+          separator.splice(target.index, 1)
+          applied = true
+          return true
+        })
+      }
+      if (applied) clearSelection()
+      return applied
+    }
+    wrapper.addEventListener('keydown', (event) => {
+      if (selection === null) return
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault()
+        event.stopPropagation()
+        deleteSelection()
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        clearSelection()
+      }
+    })
+    wrapper.addEventListener('mousedown', (event) => {
+      const target = event.target
+      if (target === null || typeof target.closest !== 'function') return
+      if (target.closest('.gh-md-cm6-table-row-handle') !== null) return
+      if (target.closest('.gh-md-cm6-table-col-handle') !== null) return
+      clearSelection()
+    })
     const syncTableSize = () => {
       try {
         const rect = table.getBoundingClientRect()
         wrapper.style.setProperty('--gh-md-table-w', Math.round(rect.width) + 'px')
         wrapper.style.setProperty('--gh-md-table-h', Math.round(rect.height) + 'px')
       } catch {}
+      layoutHandles()
     }
+    try { scroll.addEventListener('scroll', () => layoutHandles(), { passive: true }) } catch {}
     syncTableSize()
     if (typeof ResizeObserver === 'function') {
       try {

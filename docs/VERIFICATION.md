@@ -139,6 +139,15 @@ A table that spans the full content width used to clip the add-column strip. The
 - with a 5-column table filling the panel width, the column plus stays inside the wrapper (`right <= wrapper.right`) and is visible on hover;
 - clicking it still appends a column (5 → 6).
 
+## Table row/column deletion (1.1.5)
+
+`gui-table-delete-check.mjs` (10 assertions, part of the GUI suite):
+
+- row handles match the number of rows (header included) and column handles match the columns; both become visible on table hover;
+- clicking a row handle highlights exactly the columns of that row; Backspace removes the row from the document and the rendered table, then clears the selection;
+- clicking a column handle highlights header + body cells; Delete removes the column (3 → 2);
+- Escape clears the selection without changing the table; zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
