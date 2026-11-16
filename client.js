@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.7'
+      const BUILD_STAMP = '1.0.8'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -1236,6 +1236,9 @@ function installImageLightbox() {
 .gh-md-block-editor .CodeMirror .gh-md-lp-bullet{color:var(--dsw-alias-label-secondary);font-weight:700}
 .gh-md-block-editor .CodeMirror .gh-md-lp-bullet-number{color:var(--dsw-alias-label-secondary);font-weight:600}
 .gh-md-block-editor .CodeMirror .gh-md-lp-quote{border-left:3px solid var(--dsw-alias-border-l2);padding-left:8px;color:var(--dsw-alias-label-secondary)}
+.gh-md-copy-hint{position:fixed;right:22px;bottom:52px;z-index:131;display:inline-flex;align-items:center;gap:6px;max-width:min(420px,calc(100vw - 44px));height:26px;padding:0 10px;border-radius:6px;border:.5px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-1,#f6f8fa);color:var(--dsw-alias-label-secondary,#57606a);font:500 12px/1 var(--dsw-font,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);box-shadow:0 2px 8px rgb(31 35 40 / 8%)}
+.gh-md-copy-hint-text{flex:none}
+.gh-md-copy-hint-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary,#8c959f);font-weight:400}
 .gh-md-save-pill{position:fixed;right:22px;bottom:18px;z-index:130;display:inline-flex;align-items:center;height:24px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-elevated,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font,inherit);font-size:11px;line-height:1;box-shadow:0 4px 14px rgb(0 0 0 / 10%);cursor:default}
 .gh-md-save-pill[data-tone=saving]{color:var(--dsw-alias-label-secondary)}
 .gh-md-save-pill[data-tone=saved]{color:var(--dsw-alias-state-success-primary,var(--dsw-alias-label-secondary))}
@@ -2265,6 +2268,9 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const [editableKnown, setEditableKnown] = React.useState(false)
         const [saveState, setSaveState] = React.useState('idle')
         const [saveMessage, setSaveMessage] = React.useState('')
+        /** 链接复制反馈：独立于保存状态，避免点链接时误显示"已保存"。 */
+        const [copyHint, setCopyHint] = React.useState(null)
+        const copyHintTimerRef = React.useRef(null)
         const docTextRef = React.useRef(streamText)
         const editingRef = React.useRef(null)
         const dirtyRef = React.useRef(false)
@@ -2749,11 +2755,21 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             try {
               if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') void navigator.clipboard.writeText(href)
             } catch {}
-            setSaveState('saved')
-            setSaveMessage(newTab === true ? '链接已复制（Ctrl+Click：新面板）' : '链接已复制：' + href)
-            hideSaveSoon(2400)
+            // 链接点击只给"已复制"提示，不再借用保存状态条（以前会误显示"已保存"）。
+            setCopyHint({ text: newTab === true ? '链接已复制（Ctrl+Click：新面板）' : '链接已复制', detail: href })
+            if (copyHintTimerRef.current !== null) window.clearTimeout(copyHintTimerRef.current)
+            copyHintTimerRef.current = window.setTimeout(() => {
+              copyHintTimerRef.current = null
+              setCopyHint(null)
+            }, 2000)
           }
-          return () => { window.__ghMdOpenLink = undefined }
+          return () => {
+            window.__ghMdOpenLink = undefined
+            if (copyHintTimerRef.current !== null) {
+              window.clearTimeout(copyHintTimerRef.current)
+              copyHintTimerRef.current = null
+            }
+          }
         }, [])
 
         React.useEffect(() => {
@@ -3648,7 +3664,13 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
                   : saveState === 'saved'
                     ? tr('editSaved', '已保存')
                     : (saveMessage !== '' ? saveMessage : tr('editFailed', '保存失败')))
+          const copyHintNode = copyHint === null
+            ? null
+            : h('div', { className: 'gh-md-copy-hint', title: copyHint.detail },
+                h('span', { className: 'gh-md-copy-hint-text' }, copyHint.text),
+                h('span', { className: 'gh-md-copy-hint-detail' }, copyHint.detail))
           return h(React.Fragment, null,
+            copyHintNode,
             cm6Pill,
             h('div', {
               ref: (node) => {

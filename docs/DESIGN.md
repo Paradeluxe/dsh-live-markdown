@@ -2264,3 +2264,12 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 根因 3（异步可写性）：读取确认可写之前渲染静态排版；修法：新增 editableKnown，确认前渲染与编辑器同容器的空白占位（4s 超时回退静态）；
 - 兜底：ResizeObserver 监听编辑器尺寸，变化时 updateDecorateWindow + rebuildEffect（首次测量为 0 或面板展开时自动修正装饰窗口）；
 - 实测：打开文档后第一帧即 editor: true、staticBlocks: 0；预热在打开前完成；jsdom 集成测试保持旧行为（用 UA 判定，避免测试环境无 vendor 路由时空白）。
+
+---
+
+## 122. v1.0.8：链接复制的独立反馈
+
+- 现象：点链接后右下角出现「已保存」；
+- 根因：__ghMdOpenLink 复用保存状态条（setSaveState('saved') + setSaveMessage(链接已复制…)），而状态条 saved 分支只渲染固定文案「已保存」，saveMessage 只在 error 分支使用；
+- 修法：新增 copyHint 状态与 .gh-md-copy-hint 提示条（链接已复制 + 地址，2s 自动消失，位于保存条上方），链接点击不再触碰 saveState；
+- 验证：点链接 → 只有复制提示、无保存条、剪贴板正确、磁盘未变；真实保存仍显示 保存中… → 已保存。

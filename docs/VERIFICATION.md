@@ -78,6 +78,14 @@ Per-frame sampling of a document being opened in a real page:
 - Before: the first frames showed the static Markdown layout ([data-gh-md-block] present, no .cm-editor), then the CM6 preview replaced it; the document CSS could be missing on the very first frame because it was injected after paint.
 - After: the first frame that contains the document is already the CM6 editor (editor: true, staticBlocks: 0); window.__ghMdCm6LivePreview and the bundle script exist before any document is opened, because the plugin warms them at load time.
 
+## Link click feedback (1.0.8)
+
+Clicking a rendered link is asserted in a real page (with clipboard permissions granted):
+
+- a `.gh-md-copy-hint` appears with the copied target and auto-dismisses after ~2 s;
+- no `.gh-md-save-pill` appears and the file on disk is unchanged;
+- a real save still shows 保存中… then 已保存.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
