@@ -86,6 +86,18 @@ Clicking a rendered link is asserted in a real page (with clipboard permissions 
 - no `.gh-md-save-pill` appears and the file on disk is unchanged;
 - a real save still shows 保存中… then 已保存.
 
+## Link navigation (1.0.10)
+
+Replaces the 1.0.9 replace-tab behaviour; asserted in a real page:
+
+| Action | Observed |
+|---|---|
+| click a relative Markdown link | tab count 1 → 2, the target becomes active, the source tab stays open |
+| click back to the source tab | source document shown again, tab count 2 |
+| click a [[wikilink]] to an already-open target | tab count stays 2 (existing tab focused, no duplicate) |
+| click the same target again | tab count stays 2 |
+| external https link | opens a browser page, no copy hint |
+
 ## Link navigation (1.0.9)
 
 Asserted in a real page by clicking rendered anchors:

@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.0.9'
+      const BUILD_STAMP = '1.0.10'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -2800,7 +2800,10 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
                 if (/\.[a-z0-9]{1,8}$/iu.test(pathPart) === false) target = pathPart + '.md' + hash
                 const address = new URL(target, base).href
                 if (address.startsWith('dsh-resource:') === false) throw new Error('not a resource address')
-                actions.openResource(address, newTab === true ? {} : { replaceTab: true })
+                // 点链接 = 打开新标签页（不覆盖当前文档）；已经打开过的同一文档会被聚焦。
+                // Ctrl/Cmd+Click 也走同一路径（宿主会聚焦已存在的标签，不会重复开）。
+                void newTab
+                actions.openResource(address)
                 return
               } catch {}
             }

@@ -1,6 +1,6 @@
 {
   "name": "@paradeluxe/dsh-live-markdown",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "type": "module",
   "private": false,
   "description": "Obsidian-style Live Preview for Markdown in DSH: every block renders, only the block you edit shows its source. Tables, images (double-click lightbox), callouts, embeds, math, folding and editing keymap follow real Obsidian measurements.",
