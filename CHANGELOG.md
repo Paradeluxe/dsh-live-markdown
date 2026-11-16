@@ -5,7 +5,7 @@ Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`
 ## 1.0.3
 
 - Root cause of the typing-time flicker: the host preview rebuilds the whole preview component whenever the file changes, so the 200 ms autosave tore the editor down and rebuilt it continuously.
-- Autosave now debounces 700 ms (still flushes on file switch, blur, and Ctrl+S), and a DOM snapshot of the previous frame is used as a placeholder during the rebuild. Frame sampling shows 0 blank frames while typing through saves.
+- Autosave debounce was raised (700 ms at the time; 1500 ms in 1.0.4) while `Ctrl+S` still saves immediately, and a DOM snapshot of the previous frame is used as a placeholder during the rebuild. Frame sampling shows 0 blank frames while typing through saves.
 
 ## 1.0.2
 

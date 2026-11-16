@@ -39,6 +39,17 @@ Known-flaky spots are handled by re-running a script once against a fresh page a
 | Preview-rebuild flicker | Frame sampling with `requestAnimationFrame`: 413 frames while typing through saves → 3 blank frames (initial load only), 0 stale placeholders |
 | No lost keystrokes | Type then trigger `pagehide` with the autosave debounce temporarily raised to 60 s: the file still receives the final characters |
 
+## Save latency (measured)
+
+The editor has no save button; it saves automatically. Measured by typing, then polling the file on disk from the test script:
+
+| Trigger | Observed delay |
+|---|---|
+| Idle autosave after typing | ~1.65 s (1500 ms debounce + one round trip) |
+| Ctrl+S inside the editor | 0 ms (immediate) |
+| Window close / page hide | immediate (`pagehide` + `sendBeacon`) |
+| Closing the preview tab | not immediate, but the pending timer still runs: the file contains the edits within ~1.5 s |
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
