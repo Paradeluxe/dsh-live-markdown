@@ -658,9 +658,13 @@ class TableWidget extends WidgetType {
     // ---- Obsidian 风格的行/列选择手柄：点一下选中整行/整列，再按 Backspace / Delete 删除 ----
     const gripVertical = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></svg>'
     const gripHorizontal = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="10" r="1.1"/><circle cx="8" cy="6" r="1.1"/><circle cx="8" cy="10" r="1.1"/><circle cx="12" cy="6" r="1.1"/><circle cx="12" cy="10" r="1.1"/></svg>'
-    let selection = null
+    let selection = null // { kind: 'row' | 'col', anchor, focus }
     const rowHandles = []
     const colHandles = []
+    const selectionRange = () => {
+      if (selection === null) return null
+      return { kind: selection.kind, start: Math.min(selection.anchor, selection.focus), end: Math.max(selection.anchor, selection.focus) }
+    }
     const clearSelection = () => {
       if (selection === null) return
       selection = null
@@ -669,26 +673,31 @@ class TableWidget extends WidgetType {
       for (const handle of colHandles) handle.classList.remove('is-selected')
       wrapper.dataset.mdSelection = ''
     }
-    const applySelection = (kind, index) => {
+    const applySelection = (kind, index, extend) => {
+      const previous = selectionRange()
+      const keepAnchor = extend === true && previous !== null && previous.kind === kind
+      const anchor = keepAnchor ? selection.anchor : index
       for (const cell of wrapper.querySelectorAll('th,td')) cell.classList.remove('gh-md-cm6-table-cell-selected')
       for (const handle of rowHandles) handle.classList.remove('is-selected')
       for (const handle of colHandles) handle.classList.remove('is-selected')
-      selection = { kind, index }
+      selection = { kind, anchor, focus: index }
       wrapper.dataset.mdSelection = kind
-      const cells = wrapper.querySelectorAll(kind === 'row' ? 'th,td' : 'th,td')
-      for (const cell of cells) {
-        if (kind === 'row' && Number(cell.dataset.row) === index) cell.classList.add('gh-md-cm6-table-cell-selected')
-        if (kind === 'col' && Number(cell.dataset.cell) === index) cell.classList.add('gh-md-cm6-table-cell-selected')
+      const low = Math.min(anchor, index)
+      const high = Math.max(anchor, index)
+      for (const cell of wrapper.querySelectorAll('th,td')) {
+        const position = kind === 'row' ? Number(cell.dataset.row) : Number(cell.dataset.cell)
+        if (position >= low && position <= high) cell.classList.add('gh-md-cm6-table-cell-selected')
       }
-      const handles = kind === 'row' ? rowHandles : colHandles
-      for (const handle of handles) {
-        if (Number(handle.dataset.index) === index) handle.classList.add('is-selected')
+      for (const handle of (kind === 'row' ? rowHandles : colHandles)) {
+        const position = Number(handle.dataset.index)
+        if (position >= low && position <= high) handle.classList.add('is-selected')
       }
     }
     const layoutHandles = () => {
       try {
         const wrapperRect = wrapper.getBoundingClientRect()
         const tableRect = table.getBoundingClientRect()
+        const current = selectionRange()
         const rowNodes = Array.from(table.querySelectorAll('tr'))
         rowHandles.forEach((handle) => handle.remove())
         rowHandles.length = 0
@@ -700,17 +709,17 @@ class TableWidget extends WidgetType {
           handle.setAttribute('role', 'button')
           handle.setAttribute('tabindex', '0')
           handle.setAttribute('aria-label', '选择整行')
-          handle.setAttribute('title', '选择整行（Backspace 删除）')
+          handle.setAttribute('title', '选择整行（Shift 点击可多选，Backspace 删除，Ctrl+C 复制）')
           handle.innerHTML = gripVertical
           handle.style.top = (rect.top - wrapperRect.top) + 'px'
           handle.style.left = (rect.left - wrapperRect.left - 16) + 'px'
           handle.style.height = rect.height + 'px'
-          if (selection !== null && selection.kind === 'row' && selection.index === index) handle.classList.add('is-selected')
+          if (current !== null && current.kind === 'row' && index >= current.start && index <= current.end) handle.classList.add('is-selected')
           handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
           handle.addEventListener('click', (event) => {
             event.preventDefault()
             event.stopPropagation()
-            applySelection('row', index)
+            applySelection('row', index, event.shiftKey)
             handle.focus()
           })
           wrapper.appendChild(handle)
@@ -727,17 +736,17 @@ class TableWidget extends WidgetType {
           handle.setAttribute('role', 'button')
           handle.setAttribute('tabindex', '0')
           handle.setAttribute('aria-label', '选择整列')
-          handle.setAttribute('title', '选择整列（Backspace 删除）')
+          handle.setAttribute('title', '选择整列（Shift 点击可多选，Backspace 删除，Ctrl+C 复制）')
           handle.innerHTML = gripHorizontal
           handle.style.left = (rect.left - wrapperRect.left) + 'px'
           handle.style.top = (tableRect.top - wrapperRect.top - 16) + 'px'
           handle.style.width = rect.width + 'px'
-          if (selection !== null && selection.kind === 'col' && selection.index === index) handle.classList.add('is-selected')
+          if (current !== null && current.kind === 'col' && index >= current.start && index <= current.end) handle.classList.add('is-selected')
           handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
           handle.addEventListener('click', (event) => {
             event.preventDefault()
             event.stopPropagation()
-            applySelection('col', index)
+            applySelection('col', index, event.shiftKey)
             handle.focus()
           })
           wrapper.appendChild(handle)
@@ -746,22 +755,26 @@ class TableWidget extends WidgetType {
       } catch {}
     }
     const deleteSelection = () => {
-      if (selection === null) return false
-      const target = selection
+      const range = selectionRange()
+      if (range === null) return false
       let applied = false
-      if (target.kind === 'row') {
+      if (range.kind === 'row') {
         applyEdit((rows) => {
           if (rows.length <= 1) return false
-          if (target.index < 0 || target.index >= rows.length) return false
-          rows.splice(target.index, 1)
+          const count = Math.min(range.end - range.start + 1, rows.length - 1)
+          const startRow = Math.min(range.start, rows.length - count)
+          rows.splice(startRow, count)
           applied = true
           return true
         })
       } else {
         applyEdit((rows, separator) => {
-          if ((rows[0] ?? []).length <= 1) return false
-          for (const row of rows) row.splice(target.index, 1)
-          separator.splice(target.index, 1)
+          const columns = (rows[0] ?? []).length
+          if (columns <= 1) return false
+          const count = Math.min(range.end - range.start + 1, columns - 1)
+          const startColumn = Math.min(range.start, columns - count)
+          for (const row of rows) row.splice(startColumn, count)
+          separator.splice(startColumn, count)
           applied = true
           return true
         })
@@ -769,12 +782,62 @@ class TableWidget extends WidgetType {
       if (applied) clearSelection()
       return applied
     }
+    const selectionToText = () => {
+      const range = selectionRange()
+      if (range === null) return ''
+      const lines = []
+      for (let rowIndex = range.start; rowIndex <= range.end; rowIndex += 1) {
+        const row = this.rows[rowIndex]
+        if (row === undefined) continue
+        const values = []
+        const firstCell = range.kind === 'row' ? 0 : range.start
+        const lastCell = range.kind === 'row' ? row.length - 1 : range.end
+        for (let cellIndex = firstCell; cellIndex <= lastCell; cellIndex += 1) {
+          const cell = row[cellIndex]
+          if (cell !== undefined) values.push((cell.text ?? '').trim())
+        }
+        lines.push(values.join('\t'))
+      }
+      return lines.join('\n')
+    }
+    const copySelection = () => {
+      const value = selectionToText()
+      if (value === '') return false
+      const fallback = () => {
+        try {
+          const area = document.createElement('textarea')
+          area.value = value
+          area.style.position = 'fixed'
+          area.style.opacity = '0'
+          document.body.appendChild(area)
+          area.select()
+          const ok = document.execCommand('copy')
+          area.remove()
+          return ok
+        } catch {
+          return false
+        }
+      }
+      try {
+        if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(value).catch(() => { fallback() })
+          return true
+        }
+      } catch {}
+      return fallback()
+    }
     wrapper.addEventListener('keydown', (event) => {
       if (selection === null) return
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault()
         event.stopPropagation()
         deleteSelection()
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
+        event.preventDefault()
+        event.stopPropagation()
+        copySelection()
         return
       }
       if (event.key === 'Escape') {

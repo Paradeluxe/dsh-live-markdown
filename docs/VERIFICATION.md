@@ -148,6 +148,14 @@ A table that spans the full content width used to clip the add-column strip. The
 - clicking a column handle highlights header + body cells; Delete removes the column (3 → 2);
 - Escape clears the selection without changing the table; zero page errors.
 
+## Table multi-selection and copy (1.1.6)
+
+`gui-table-multisel-check.mjs` (8 assertions, part of the GUI suite, real clipboard):
+
+- Shift+click on row handles selects a contiguous range: 2 handles, 6 highlighted cells; Ctrl+C puts `甲\t1\t第一行\n乙\t2\t第二行` on the clipboard; Backspace deletes both rows (3 → 1);
+- Shift+click on column handles selects 2 columns (4 highlighted cells); Ctrl+C copies `名称\t数值\n丙\t3`; Delete removes both columns (3 → 1);
+- a plain click replaces the previous selection with a single row; zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

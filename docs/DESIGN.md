@@ -2355,3 +2355,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 交互：点手柄选中（手柄 `tabindex=0` 并 focus，保证按键落在 wrapper 内）；wrapper 的 keydown 捕获 `Backspace`/`Delete` 删除、`Esc` 取消；点表格其它位置取消；
 - 删除：复用 `applyEdit`（源码态 → 文本变更 → 渲染态）；只剩 1 列时拒绝；删除后清除选择；
 - 注意：手柄仅用于单击选择，未实现 Obsidian 的拖拽排序。
+
+---
+
+## 131. v1.1.6：表格多选与复制
+
+- 选择状态从 `{kind,index}` 改为 `{kind, anchor, focus}`，`selectionRange()` 得到连续区间；
+- Shift+点击手柄时保留 anchor、更新 focus；普通点击重置 anchor；高亮同时作用于单元格（`.gh-md-cm6-table-cell-selected`）与手柄（`.is-selected`）；
+- 删除：行/列按区间 splice，并限制 `count <= 行数-1 / 列数-1`，保证表格始终合法；
+- 复制：`selectionToText()` 生成 TSV（行选区取整行，列选区每行取区间内单元格），`Ctrl/Cmd+C` 在 wrapper keydown 中拦截；优先 `navigator.clipboard.writeText`，失败回退 `execCommand('copy')`；
+- 未实现手柄拖拽排序。
