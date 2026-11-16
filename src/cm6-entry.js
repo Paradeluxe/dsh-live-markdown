@@ -28,18 +28,10 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-lp-link { color: var(--dsw-alias-state-info-primary, #0969da); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .gh-md-cm6-lp .gh-md-lp-link[data-href^="http"]::after { content: '↗'; font-size: .82em; margin-left: 1px; text-decoration: none; }
 .gh-md-cm6-lp .gh-md-lp-bullet { color: var(--dsw-alias-label-tertiary, #8c959f); }
-.gh-md-cm6-lp .gh-md-cm6-fold-chevron { display: inline-block; width: 14px; margin-left: -18px; margin-right: 4px; font-size: 10px; line-height: 1; color: var(--dsw-alias-label-tertiary, #8c959f); cursor: pointer; opacity: 0; transition: opacity .12s ease; vertical-align: middle; }
-.gh-md-cm6-lp .cm-line:hover .gh-md-cm6-fold-chevron, .gh-md-cm6-lp .gh-md-cm6-fold-chevron.is-folded { opacity: .9; }
 .gh-md-cm6-lp .gh-md-lp-li { }
 .gh-md-cm6-lp .gh-md-lp-bullet-wrap { display: inline-flex; align-items: center; }
 .gh-md-cm6-lp .gh-md-lp-ol-wrap { display: inline-flex; align-items: center; }
 .gh-md-cm6-lp .gh-md-lp-task-wrap { display: inline-flex; align-items: center; }
-.gh-md-cm6-lp .gh-md-lp-task-wrap .gh-md-cm6-fold-chevron { position: static; width: 14px; margin: 0 0 0 -16px; font-size: 9px; opacity: 0; vertical-align: middle; }
-.gh-md-cm6-lp .cm-line:hover .gh-md-lp-task-wrap .gh-md-cm6-fold-chevron, .gh-md-cm6-lp .gh-md-lp-task-wrap.is-folded .gh-md-cm6-fold-chevron { opacity: .9; }
-.gh-md-cm6-lp .gh-md-lp-ol-wrap .gh-md-cm6-fold-chevron { position: static; width: 14px; margin: 0 0 0 -16px; font-size: 9px; opacity: 0; vertical-align: middle; }
-.gh-md-cm6-lp .cm-line:hover .gh-md-lp-ol-wrap .gh-md-cm6-fold-chevron, .gh-md-cm6-lp .gh-md-lp-ol-wrap.is-folded .gh-md-cm6-fold-chevron { opacity: .9; }
-.gh-md-cm6-lp .gh-md-lp-bullet-wrap .gh-md-cm6-fold-chevron { position: static; width: 14px; margin: 0 0 0 -16px; font-size: 9px; opacity: 0; vertical-align: middle; }
-.gh-md-cm6-lp .cm-line:hover .gh-md-lp-bullet-wrap .gh-md-cm6-fold-chevron, .gh-md-cm6-lp .gh-md-lp-bullet-wrap.is-folded .gh-md-cm6-fold-chevron { opacity: .9; }
 .gh-md-cm6-lp .gh-md-cm6-fold-hidden { height: 0; overflow: hidden; }
 .gh-md-cm6-lp .gh-md-lp-h1 { font-size: 1.618em; font-weight: 700; line-height: 1.2; padding-top: 16px; }
 .gh-md-cm6-lp .gh-md-lp-h2 { font-size: 1.462em; font-weight: 600; line-height: 1.2; padding-top: 16px; }
@@ -100,7 +92,6 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-frontmatter-pill { background: rgb(139 108 239 / 12%); color: #8b6cef; border-radius: 999px; padding: 1px 8px; font-size: .92em; }
 .gh-md-cm6-lp .gh-md-cm6-callout { margin: 8px 0; border-left: 3px solid var(--gh-md-callout-accent, #0969da); border-radius: 6px; background: var(--gh-md-callout-bg, rgb(9 105 218 / 6%)); padding: 8px 12px; }
 .gh-md-cm6-lp .gh-md-cm6-callout-title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--gh-md-callout-accent, #0969da); }
-.gh-md-cm6-lp .gh-md-cm6-callout-chevron { margin-left: auto; font-size: 10px; color: var(--dsw-alias-label-tertiary, #8c959f); }
 .gh-md-cm6-lp .gh-md-cm6-callout-icon { display: inline-flex; align-items: center; color: var(--gh-md-callout-accent, #0969da); }
 .gh-md-cm6-lp .gh-md-cm6-callout-icon svg { width: 15px; height: 15px; }
 .gh-md-cm6-lp .gh-md-cm6-callout-body { margin-top: 4px; color: var(--dsw-alias-label-primary, #1f2328); }
@@ -132,6 +123,65 @@ const CSS = `
 .gh-md-cm6-table-menu { position: fixed; z-index: 10000; display: flex; flex-direction: column; min-width: 132px; padding: 4px; border: .5px solid var(--dsw-alias-border-l2, #d0d7de); border-radius: 8px; background: var(--dsw-alias-bg-layer-2, #ffffff); box-shadow: 0 8px 24px rgb(0 0 0 / 18%); }
 .gh-md-cm6-table-menu button { border: none; background: transparent; text-align: left; font-size: 12px; padding: 5px 10px; border-radius: 5px; color: var(--dsw-alias-label-primary, #1f2328); cursor: pointer; }
 .gh-md-cm6-table-menu button:hover { background: var(--dsw-alias-bg-layer-1, #f6f8fa); }
+/* 折叠箭头：圆角描边 chevron；展开 → 旋转 90° 指向下，折叠 → 指向右 */
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: var(--gh-md-chevron-size, 16px); height: var(--gh-md-chevron-size, 16px);
+  margin-left: -20px; margin-right: 4px;
+  color: var(--dsw-alias-label-tertiary, #8c959f);
+  cursor: pointer; opacity: 0; border-radius: 50%;
+  transition: opacity .12s ease, color .12s ease, background-color .12s ease;
+  vertical-align: middle;
+  transform: translateY(var(--gh-md-chevron-shift, 0px));
+}
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron svg {
+  display: block; width: 100%; height: 100%;
+  transform: rotate(90deg);
+  transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron.is-folded svg { transform: rotate(0deg); }
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron path {
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.gh-md-cm6-lp .cm-line:hover .gh-md-cm6-fold-chevron,
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron.is-folded { opacity: 1; }
+.gh-md-cm6-lp .cm-line:hover .gh-md-cm6-fold-chevron { color: var(--dsw-alias-label-secondary, #57606a); }
+.gh-md-cm6-lp .gh-md-cm6-fold-chevron:hover {
+  color: var(--dsw-alias-label-primary, #1f2328);
+  background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 4%));
+}
+.gh-md-cm6-lp .gh-md-lp-bullet-wrap .gh-md-cm6-fold-chevron,
+.gh-md-cm6-lp .gh-md-lp-ol-wrap .gh-md-cm6-fold-chevron,
+.gh-md-cm6-lp .gh-md-lp-task-wrap .gh-md-cm6-fold-chevron {
+  margin: 0 0 0 -18px; --gh-md-chevron-size: 15px; --gh-md-chevron-shift: 0px;
+}
+.gh-md-cm6-lp .gh-md-lp-bullet-wrap .gh-md-cm6-fold-chevron,
+.gh-md-cm6-lp .gh-md-lp-ol-wrap .gh-md-cm6-fold-chevron { --gh-md-chevron-shift: -0.5px; }
+.gh-md-cm6-lp .gh-md-lp-task-wrap .gh-md-cm6-fold-chevron { --gh-md-chevron-shift: 1.5px; }
+.gh-md-cm6-lp .gh-md-lp-h1 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 20px; --gh-md-chevron-shift: -4.4px; }
+.gh-md-cm6-lp .gh-md-lp-h2 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 19px; --gh-md-chevron-shift: -3.7px; }
+.gh-md-cm6-lp .gh-md-lp-h3 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 18px; --gh-md-chevron-shift: -3.7px; }
+.gh-md-cm6-lp .gh-md-lp-h4 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 17px; --gh-md-chevron-shift: -3.3px; }
+.gh-md-cm6-lp .gh-md-lp-h5 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 16px; --gh-md-chevron-shift: -3.2px; }
+.gh-md-cm6-lp .gh-md-lp-h6 .gh-md-cm6-fold-chevron { --gh-md-chevron-size: 15px; --gh-md-chevron-shift: -2.5px; }
+/* callout 标题栏右侧的折叠箭头 */
+.gh-md-cm6-lp .gh-md-cm6-callout-chevron {
+  margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; color: var(--dsw-alias-label-tertiary, #8c959f);
+  transition: color .12s ease;
+}
+.gh-md-cm6-lp .gh-md-cm6-callout-chevron svg {
+  display: block; width: 16px; height: 16px;
+  transform: rotate(90deg);
+  transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+.gh-md-cm6-lp .gh-md-cm6-callout-chevron.is-folded svg { transform: rotate(0deg); }
+.gh-md-cm6-lp .gh-md-cm6-callout-chevron path {
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.gh-md-cm6-lp .gh-md-cm6-callout:hover .gh-md-cm6-callout-chevron { color: var(--dsw-alias-label-secondary, #57606a); }
 `
 
 const INLINE_PATTERN = /(<!--[^>]*-->|<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>[^<]*<\/\2>|<br\s*\/?>|!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\)|`[^`]+`|\$[^$\n]+\$|==[^=\n]+==|\[\[[^\]]+\]\]|\[\^[^\]]+\]|#[\p{L}\p{N}_-]+|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\*[^*\s][^*]*\*|_[^_\s][^_]*_|\[[^\]]+\]\([^)]*\))/gu
@@ -210,8 +260,8 @@ class BulletWidget extends WidgetType {
     const wrap = document.createElement('span')
     wrap.className = 'gh-md-lp-bullet-wrap' + (this.folded ? ' is-folded' : '')
     const chevron = document.createElement('span')
-    chevron.className = 'gh-md-cm6-fold-chevron'
-    chevron.textContent = this.folded ? '▸' : '▾'
+    chevron.className = 'gh-md-cm6-fold-chevron' + (this.folded ? ' is-folded' : '')
+    appendChevronIcon(chevron)
     chevron.setAttribute('contenteditable', 'false')
     chevron.addEventListener('mousedown', (event) => {
       event.preventDefault()
@@ -250,8 +300,8 @@ class TaskWidget extends WidgetType {
     const wrap = document.createElement('span')
     wrap.className = 'gh-md-lp-task-wrap' + (this.folded ? ' is-folded' : '')
     const chevron = document.createElement('span')
-    chevron.className = 'gh-md-cm6-fold-chevron'
-    chevron.textContent = this.folded ? '▸' : '▾'
+    chevron.className = 'gh-md-cm6-fold-chevron' + (this.folded ? ' is-folded' : '')
+    appendChevronIcon(chevron)
     chevron.setAttribute('contenteditable', 'false')
     chevron.addEventListener('mousedown', (event) => {
       event.preventDefault()
@@ -833,8 +883,8 @@ class OrderedWidget extends WidgetType {
     const wrap = document.createElement('span')
     wrap.className = 'gh-md-lp-ol-wrap' + (this.folded ? ' is-folded' : '')
     const chevron = document.createElement('span')
-    chevron.className = 'gh-md-cm6-fold-chevron'
-    chevron.textContent = this.folded ? '▸' : '▾'
+    chevron.className = 'gh-md-cm6-fold-chevron' + (this.folded ? ' is-folded' : '')
+    appendChevronIcon(chevron)
     chevron.setAttribute('contenteditable', 'false')
     chevron.addEventListener('mousedown', (event) => {
       event.preventDefault()
@@ -1060,8 +1110,8 @@ class CalloutWidget extends WidgetType {
     const title = document.createElement('span')
     title.textContent = this.title === '' ? this.type : this.title
     const chevron = document.createElement('span')
-    chevron.className = 'gh-md-cm6-callout-chevron'
-    chevron.textContent = this.fold === '-' ? '▸' : '▾'
+    chevron.className = 'gh-md-cm6-callout-chevron' + (this.fold === '-' ? ' is-folded' : '')
+    appendChevronIcon(chevron)
     head.appendChild(icon)
     head.appendChild(title)
     if (this.fold !== '') {
@@ -1790,7 +1840,7 @@ class FoldChevronWidget extends WidgetType {
   toDOM() {
     const node = document.createElement('span')
     node.className = 'gh-md-cm6-fold-chevron' + (this.folded ? ' is-folded' : '')
-    node.textContent = this.folded ? '▸' : '▾'
+    appendChevronIcon(node)
     node.setAttribute('contenteditable', 'false')
     node.addEventListener('mousedown', (event) => {
       event.preventDefault()
@@ -1809,6 +1859,22 @@ class FoldChevronWidget extends WidgetType {
   ignoreEvent() {
     return true
   }
+}
+
+/** 折叠箭头统一为 16×16 的圆角描边 chevron（不再是文字三角）。 */
+const CHEVRON_PATH = 'M6.3 4 10.3 8 6.3 12'
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+function appendChevronIcon(host) {
+  const svg = document.createElementNS(SVG_NS, 'svg')
+  svg.setAttribute('viewBox', '0 0 16 16')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.setAttribute('focusable', 'false')
+  const path = document.createElementNS(SVG_NS, 'path')
+  path.setAttribute('d', CHEVRON_PATH)
+  svg.appendChild(path)
+  host.appendChild(svg)
+  return svg
 }
 
 function createLivePreviewDecorations(resolveImage, renderMath, composeState, host) {

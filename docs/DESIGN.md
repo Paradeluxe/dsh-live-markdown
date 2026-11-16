@@ -2241,3 +2241,15 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - `window.blur` / `visibilitychange` / 标签页卸载 / `pagehide` 都会 flush；`Ctrl+S` 仍立刻写；
 - 可见兜底 30 分钟一次（防崩溃丢内容），jsdom 与测试覆盖模式（`window.__ghMdSaveDelay`）保持旧的"到点即写"行为；
 - 实测：可见打字 350 帧，编辑器节点身份变化 0、空白帧 0、滚动位移 0；失焦后 1 秒内落盘。
+
+---
+
+## 120. v1.0.6：折叠箭头重做
+
+- 旧实现：`▸/▾` 文字字形、`font-size: 10px`、14px 宽 + 负边距，基线对齐天然不准（标题实测低 2.5–4.5px）；
+- 新实现：`createChevronNode()` 统一产出 `<span><svg viewBox="0 0 16 16"><path d="M6.3 4 10.3 8 6.3 12"/></svg></span>`；
+- 尺寸 `--gh-md-chevron-size`（h1 20 → h6 15，列表 15），垂直位置 `--gh-md-chevron-shift`（按层级实测修正）；
+- 旋转：展开 `rotate(90deg)`（指向下），`.is-folded` 时 `rotate(0deg)`（指向右），`cubic-bezier(.2,.7,.3,1)` 160ms；
+- 交互：行悬停或折叠时 `opacity: 1`，悬停时 4% 圆形底；颜色走 `--dsw-alias-label-tertiary/secondary/primary`；
+- callout 标题箭头复用同一套图标；
+- 实测：h1–h6、无序、有序、任务全部与文字中心偏差 0–0.5px；点击折叠/展开正常（折叠后可见行 2 行、旋转 0°）。

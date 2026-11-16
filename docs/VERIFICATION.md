@@ -58,6 +58,19 @@ The editor has no save button; it saves automatically. Measured by typing, then 
 | Window close / page hide | immediate (`pagehide` + `sendBeacon`) |
 | Closing the preview tab | not immediate, but the pending timer still runs: the file contains the edits within ~1.5 s |
 
+## Fold chevron (1.0.6)
+
+The chevron is an inline-flex box whose vertical position is corrected per context with `--gh-md-chevron-shift`; centre offsets are measured against the text run rect in a real page:
+
+| Context | Offset (px) |
+|---|---|
+| h1 | 0.1 |
+| h2–h6 | 0.0 |
+| bullet / ordered | 0.0 |
+| task | 0.5 |
+
+Before the rewrite the glyph was 2.5–4.5 px below the text centre on headings. Screenshots: [`chevron.png`](screenshots/chevron.png), [`chevron-list.png`](screenshots/chevron-list.png).
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
