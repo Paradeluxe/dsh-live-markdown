@@ -263,3 +263,16 @@ MIT — see [LICENSE](LICENSE).
 另外修了一个从早期就存在的隐患：表格是"整块 widget"，直接在它自己的范围里改文本会让 CM6 在更新中途替换高度表（表现为表格不刷新，严重时直接报 `No tile`/编辑器报错）。现在改为三步：**先让表格回到源码态 → 再改文本 → 最后恢复渲染态**，每步都是独立 transaction；撤销/重做也验证可用。
 
 实测（真实 GUI，`gui-table-add-check.mjs`，11 项全过）：`+` 的位置与光标形状、加行后行数 +1、加列后列数 +1、右键删除列画面同步、撤销后编辑器仍可输入、全程 **0 条 CM6 运行时报错**。
+
+## 1.1.1（v1.1.1）：渲染器显示名改为「实时预览 Markdown」
+
+文档预览里的渲染器下拉框原来显示「GitHub 风格 Markdown」，这是插件还是 `dsh-github-md` 时的旧名字，容易和仓库/插件名对不上。现在：
+
+- 中文界面：**Live Preview Markdown**（纯英文，与插件名一致）；
+- 英文界面：**Live Preview Markdown**。
+
+只改显示名，内部 id（`@paradeluxe/dsh-live-markdown/live-markdown`）、路由前缀、设置键都保持不变，已打开的标签和本地设置不受影响。
+
+## 1.1.2（v1.1.2）：渲染器名统一为纯英文
+
+按需求把下拉框显示名统一为 **Live Preview Markdown**（中英文界面都一样，不再有「GitHub 风格 Markdown」或中英混排）。内部 id、路由前缀与设置键不变。

@@ -1,5 +1,5 @@
 /**
- * 浏览器半边：给右侧栏注册一个「GitHub 风格」的 Markdown 文档渲染器。
+ * 浏览器半边：给右侧栏注册一个「实时预览」的 Markdown 文档渲染器（Live Preview）。
  *
  * 官方 Markdown 渲染器（`@deepseek-ai/dsh-client-ui-primitives` 的 `MarkdownText`）把原始 HTML
  * 当字面文本、片段锚点被协议白名单挡掉，因此 `<sup>/<sub>` 与 `^x^` / `~x~` 都不会变成上下标。
@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.0'
+      const BUILD_STAMP = '1.1.2'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -178,7 +178,7 @@ function installImageLightbox() {
 
       /** 中文文案。 */
       const zh = {
-        title: 'GitHub 风格 Markdown',
+        title: 'Live Preview Markdown',
         loading: 'Markdown 渲染中…',
         failed: 'Markdown 渲染器加载失败',
         footnotes: '脚注',
@@ -258,7 +258,7 @@ function installImageLightbox() {
 
       /** 英文文案。 */
       const en = {
-        title: 'GitHub-style Markdown',
+        title: 'Live Preview Markdown',
         loading: 'Rendering Markdown…',
         failed: 'Markdown renderer failed to load',
         footnotes: 'Footnotes',

@@ -2312,3 +2312,17 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 点击后调用共享的 `applyEdit(mutate)`：**事务 1** 打开 `tableSourceMode` 并 `rebuildEffect`（表格切成源码态，block widget 先卸载）→ **事务 2** 修改表格文本（此时范围内没有 widget）→ **事务 3** 关闭 `tableSourceMode` 并重建（新行/列渲染出来），然后把光标放到表格后一行；
 - 右键菜单的所有行列操作复用同一个 `applyEdit`，因此也会立即刷新画面；
 - `TableWidget.eq()` 保持恒真（CM6 中途替换整块 widget 会破坏高度表），DOM 刷新完全由上述三步保证。
+
+---
+
+## 126. v1.1.1：渲染器显示名
+
+- 下拉框显示名：zh `实时预览 Markdown`、en `Live Preview Markdown`（原为 GitHub 风格 / GitHub-style，插件改名后遗留）；
+- 仅改 `documentPreviews.register` 的 `title` 文案，内部 id / 路由前缀 `/github-md/*` / 设置键 `github-md:settings:v1` 保持不变，避免已开标签和用户设置失联。
+
+---
+
+## 127. v1.1.2：显示名统一为纯英文
+
+- `documentPreviews.register` 的 `title` 在 zh / en 两个 locale 下统一为 `Live Preview Markdown`，不再中英混排；
+- 内部 id / `/github-md/*` 路由 / `github-md:settings:v1` 设置键保持不变。
