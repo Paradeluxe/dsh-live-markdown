@@ -122,6 +122,16 @@ Obsidian 1.15.1 was measured first (CDP): a full-width 16px plus strip below the
 - the context menu still deletes a column and the rendered table updates;
 - after undo the editor still accepts input, with zero CM6 runtime errors.
 
+## Image zoom (1.1.3)
+
+`gui-image-zoom-check.mjs` (in the GUI suite, 9 assertions) drives the real page:
+
+- double-clicking an image opens `.gh-md-lightbox` with an identity transform;
+- wheel up scales to 1.90x and then 3.60x, the cursor becomes grab;
+- wheel down returns to 1x;
+- dragging a zoomed image changes the translate to (60, 40) and does not close the overlay;
+- Escape closes it, with zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

@@ -2326,3 +2326,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 
 - `documentPreviews.register` 的 `title` 在 zh / en 两个 locale 下统一为 `Live Preview Markdown`，不再中英混排；
 - 内部 id / `/github-md/*` 路由 / `github-md:settings:v1` 设置键保持不变。
+
+---
+
+## 128. v1.1.3：灯箱滚轮缩放
+
+- 灯箱（`.gh-md-lightbox`）内部状态：`scale`（0.25–8）、`offsetX/offsetY`；`transform: translate(...) scale(...)`，`transform-origin: center`；
+- 滚轮：`factor = exp(-deltaY * 0.0016)`，按指针到视口中心的距离换算平移，`offset = c - (c - offset) * ratio`，保证指针下的图像点不动；`wheel` 监听 `{ passive: false }` 并 `preventDefault`；
+- 平移：放大后 `pointerdown` + 指针捕获，记录移动距离；`click` 阶段若移动 > 4px 则吞掉，避免拖动结束时触发"点背景关闭"；
+- 复位：双击图片 / 按 `0` / 窗口 resize；关闭：`Esc` / 点背景（原有逻辑）；
+- CM6 图片点击复用客户端灯箱：`window.__ghMdOpenImageLightbox`，bundle 的 `.gh-md-cm6-image-fullscreen` 仅作兜底。

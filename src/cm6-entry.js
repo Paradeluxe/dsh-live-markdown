@@ -2465,6 +2465,12 @@ export function createLivePreview(options) {
             if (image !== null) {
               const src = image.getAttribute('src') ?? ''
               if (src !== '') {
+                // 复用客户端的灯箱：支持滚轮缩放、拖拽平移、Esc 关闭。
+                const opener = window.__ghMdOpenImageLightbox
+                if (typeof opener === 'function') {
+                  opener(src, image.getAttribute('alt') ?? '')
+                  return true
+                }
                 const overlay = document.createElement('div')
                 overlay.className = 'gh-md-cm6-image-fullscreen'
                 const big = document.createElement('img')

@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.2'
+      const BUILD_STAMP = '1.1.3'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -51,17 +51,59 @@ function openImageLightbox(src, title) {
   image.className = 'gh-md-lightbox-image'
   image.setAttribute('src', src)
   image.setAttribute('alt', titlebar.textContent)
+  image.setAttribute('draggable', 'false')
 
   content.appendChild(image)
   overlay.appendChild(bg)
   overlay.appendChild(content)
   overlay.appendChild(titlebar)
 
+  // 滚轮缩放 + 放大后拖拽平移（Obsidian 的大图预览也支持滚轮缩放）。
+  const MIN_SCALE = 0.25
+  const MAX_SCALE = 8
+  let scale = 1
+  let offsetX = 0
+  let offsetY = 0
+  let dragging = false
+  let dragMoved = 0
+  let dragStartX = 0
+  let dragStartY = 0
+  let dragOriginX = 0
+  let dragOriginY = 0
+
+  const applyTransform = () => {
+    image.style.transform = 'translate(' + offsetX.toFixed(2) + 'px, ' + offsetY.toFixed(2) + 'px) scale(' + scale.toFixed(4) + ')'
+    image.style.cursor = scale > 1 ? 'grab' : 'zoom-in'
+  }
+  const resetTransform = () => {
+    scale = 1
+    offsetX = 0
+    offsetY = 0
+    applyTransform()
+  }
+  const zoomAt = (clientX, clientY, nextScale) => {
+    const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, nextScale))
+    if (Math.abs(clamped - scale) < 0.0005) return
+    const ratio = clamped / scale
+    const centerX = window.innerWidth / 2
+    const centerY = window.innerHeight / 2
+    // translate 先于 scale 生效：保持指针下的图像点不动。
+    offsetX = (clientX - centerX) - ((clientX - centerX) - offsetX) * ratio
+    offsetY = (clientY - centerY) - ((clientY - centerY) - offsetY) * ratio
+    scale = clamped
+    if (scale <= MIN_SCALE + 0.0001) {
+      offsetX = 0
+      offsetY = 0
+    }
+    applyTransform()
+  }
+
   let closed = false
   const close = () => {
     if (closed) return
     closed = true
     document.removeEventListener('keydown', onKeyDown, true)
+    window.removeEventListener('resize', onResize)
     overlay.remove()
   }
   const onKeyDown = (event) => {
@@ -69,21 +111,88 @@ function openImageLightbox(src, title) {
       event.preventDefault()
       event.stopPropagation()
       close()
+      return
+    }
+    if (event.key === '0') {
+      event.preventDefault()
+      resetTransform()
     }
   }
+  const onResize = () => { resetTransform() }
+
+  const onWheel = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const factor = Math.exp(-event.deltaY * 0.0016)
+    zoomAt(event.clientX, event.clientY, scale * factor)
+  }
+  overlay.addEventListener('wheel', onWheel, { passive: false })
+
+  image.addEventListener('pointerdown', (event) => {
+    if (scale <= 1) return
+    event.preventDefault()
+    dragging = true
+    dragMoved = 0
+    dragStartX = event.clientX
+    dragStartY = event.clientY
+    dragOriginX = offsetX
+    dragOriginY = offsetY
+    try { image.setPointerCapture(event.pointerId) } catch {}
+    image.style.cursor = 'grabbing'
+  })
+  image.addEventListener('pointermove', (event) => {
+    if (!dragging) return
+    dragMoved = Math.max(dragMoved, Math.abs(event.clientX - dragStartX) + Math.abs(event.clientY - dragStartY))
+    offsetX = dragOriginX + (event.clientX - dragStartX)
+    offsetY = dragOriginY + (event.clientY - dragStartY)
+    applyTransform()
+    image.style.cursor = 'grabbing'
+  })
+  const endDrag = (event) => {
+    if (!dragging) return
+    dragging = false
+    try { image.releasePointerCapture(event.pointerId) } catch {}
+    applyTransform()
+  }
+  image.addEventListener('pointerup', endDrag)
+  image.addEventListener('pointercancel', endDrag)
+  // 双击图片：重置缩放。
+  image.addEventListener('dblclick', (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    resetTransform()
+  })
+
   overlay.addEventListener('mousedown', (event) => {
     if (event.target === overlay || event.target === bg || event.target === content) {
       event.preventDefault()
       close()
     }
   })
+  // 拖拽结束时不要因为 click 落在遮罩/内容上而误关闭。
+  overlay.addEventListener('click', (event) => {
+    if (dragMoved > 4) {
+      dragMoved = 0
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  })
   document.addEventListener('keydown', onKeyDown, true)
+  window.addEventListener('resize', onResize)
   document.body.appendChild(overlay)
   overlay.focus()
+  applyTransform()
 }
 
 /** 上一次图片点击（用于识别「快速点两下」），click 级监听，不受 DOM 重建影响。 */
 let lastImageClick = null
+
+/** 供 CM6 bundle 复用：点击图片时打开带滚轮缩放的灯箱。 */
+function exposeImageLightbox() {
+  try {
+    window.__ghMdOpenImageLightbox = (src, title) => { openImageLightbox(src, title) }
+  } catch {}
+}
 
 function installImageLightbox() {
   if (typeof document === 'undefined') return
@@ -1100,6 +1209,7 @@ function installImageLightbox() {
        */
       function ensureDocumentStyle() {
         installImageLightbox()
+        exposeImageLightbox()
         let style = document.querySelector('style[data-github-md="style"]')
         if (style === null) {
           style = document.createElement('style')
@@ -1187,7 +1297,7 @@ function installImageLightbox() {
 .gh-md-lightbox{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;outline:none}
 .gh-md-lightbox-bg{position:absolute;inset:0;background:rgb(0 0 0/90%)}
 .gh-md-lightbox-content{position:relative;display:flex;align-items:center;justify-content:center;max-width:96vw;max-height:92vh}
-.gh-md-lightbox-image{max-width:96vw;max-height:92vh;border-radius:4px;box-shadow:0 8px 32px rgb(0 0 0/45%)}
+.gh-md-lightbox-image{max-width:96vw;max-height:92vh;border-radius:4px;box-shadow:0 8px 32px rgb(0 0 0/45%);cursor:zoom-in;will-change:transform;transform-origin:center center;user-select:none;touch-action:none}
 .gh-md-lightbox-title{position:absolute;top:12px;left:0;right:0;text-align:center;color:rgb(255 255 255/92%);font-size:13px;pointer-events:none}
 /* 顶层块包装器用 display:contents：既让点击命中「这一块」，又让块内元素仍按文档直接子元素排布。 */
 .gh-md-document .gh-md-block{display:contents}
