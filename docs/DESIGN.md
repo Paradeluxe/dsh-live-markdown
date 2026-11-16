@@ -2365,3 +2365,12 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 删除：行/列按区间 splice，并限制 `count <= 行数-1 / 列数-1`，保证表格始终合法；
 - 复制：`selectionToText()` 生成 TSV（行选区取整行，列选区每行取区间内单元格），`Ctrl/Cmd+C` 在 wrapper keydown 中拦截；优先 `navigator.clipboard.writeText`，失败回退 `execCommand('copy')`；
 - 未实现手柄拖拽排序。
+
+---
+
+## 132. v1.1.7：手柄拖拽排序 + Markdown 复制
+
+- 手柄 `pointerdown` 记录起点并 `setPointerCapture`；移动超过 4px 才进入拖拽态，并在 wrapper 里插入 `.gh-md-cm6-table-drop-indicator`（行：2px 横线；列：2px 竖线）；
+- 落点：行按 `tr` 中线、列按 `th` 中线计算插入下标（0..n）；行下标夹到 >= 1（表头固定）；松手后 `moveRowTo` / `moveColumnTo` 用同一套 `applyEdit` 改写文本；
+- 拖拽结束后用 `skipNextClick` 吞掉随后的 click，避免"拖完又触发选择"；
+- `Ctrl+Shift+C` 走 `selectionToMarkdown()`（`| a | b |`），`Ctrl+C` 仍走 `selectionToText()`（TSV）。

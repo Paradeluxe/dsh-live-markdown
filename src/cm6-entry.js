@@ -61,6 +61,10 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
 .gh-md-cm6-lp .gh-md-cm6-table .gh-md-cm6-table-cell-selected { background: rgb(9 105 218 / 10%) !important; }
+.gh-md-cm6-lp .gh-md-cm6-table-drop-indicator { position: absolute; background: var(--dsw-alias-state-info-primary, #0969da); border-radius: 2px; z-index: 3; pointer-events: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-dragging, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-dragging { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); cursor: grabbing; }
+.gh-md-cm6-lp .gh-md-cm6-table-row-handle { cursor: grab; }
+.gh-md-cm6-lp .gh-md-cm6-table-col-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
 .gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: break-word; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
@@ -693,6 +697,111 @@ class TableWidget extends WidgetType {
         if (position >= low && position <= high) handle.classList.add('is-selected')
       }
     }
+    let dragState = null
+    let skipNextClick = false
+    const moveRowTo = (from, insertAt) => {
+      if (from < 1) return false
+      let target = insertAt
+      if (from < target) target -= 1
+      if (target < 1) target = 1
+      if (target === from) return false
+      let applied = false
+      applyEdit((rows) => {
+        if (from >= rows.length) return false
+        const [row] = rows.splice(from, 1)
+        const at = Math.min(Math.max(target, 1), rows.length)
+        rows.splice(at, 0, row)
+        applied = true
+        return true
+      })
+      return applied
+    }
+    const moveColumnTo = (from, insertAt) => {
+      let target = insertAt
+      if (from < target) target -= 1
+      if (target === from) return false
+      let applied = false
+      applyEdit((rows, separator) => {
+        if (from >= (rows[0] ?? []).length) return false
+        for (const row of rows) {
+          const [cell] = row.splice(from, 1)
+          row.splice(Math.min(target, row.length), 0, cell)
+        }
+        const [separatorCell] = separator.splice(from, 1)
+        separator.splice(Math.min(target, separator.length), 0, separatorCell)
+        applied = true
+        return true
+      })
+      return applied
+    }
+    const startHandleDrag = (kind, index, handle, event) => {
+      if (event.button !== 0) return
+      dragState = { kind, index, startX: event.clientX, startY: event.clientY, moved: false, indicator: null, target: index }
+      skipNextClick = false
+      try { handle.setPointerCapture(event.pointerId) } catch {}
+    }
+    const updateDrag = (event) => {
+      if (dragState === null) return
+      const distance = Math.abs(event.clientX - dragState.startX) + Math.abs(event.clientY - dragState.startY)
+      if (!dragState.moved && distance < 4) return
+      if (!dragState.moved) {
+        dragState.moved = true
+        const indicator = document.createElement('div')
+        indicator.className = 'gh-md-cm6-table-drop-indicator'
+        wrapper.appendChild(indicator)
+        dragState.indicator = indicator
+        try { wrapper.classList.add('is-dragging-' + dragState.kind) } catch {}
+      }
+      try {
+        const wrapperRect = wrapper.getBoundingClientRect()
+        const layoutHandlesNodes = dragState.kind === 'row' ? rowHandles : colHandles
+        const nodes = dragState.kind === 'row' ? Array.from(table.querySelectorAll('tr')) : Array.from(table.querySelectorAll('thead tr:first-child th'))
+        let target = nodes.length
+        for (let position = 0; position < nodes.length; position += 1) {
+          const rect = nodes[position].getBoundingClientRect()
+          if (dragState.kind === 'row') {
+            if (event.clientY < rect.top + rect.height / 2) { target = position; break }
+          } else if (event.clientX < rect.left + rect.width / 2) {
+            target = position
+            break
+          }
+        }
+        dragState.target = target
+        if (dragState.indicator !== null) {
+          if (dragState.kind === 'row') {
+            const rect = nodes[Math.min(target, nodes.length - 1)].getBoundingClientRect()
+            const top = target >= nodes.length ? rect.bottom : rect.top
+            dragState.indicator.style.top = (top - wrapperRect.top) + 'px'
+            dragState.indicator.style.left = (rect.left - wrapperRect.left) + 'px'
+            dragState.indicator.style.width = rect.width + 'px'
+            dragState.indicator.style.height = '2px'
+          } else {
+            const rect = nodes[Math.min(target, nodes.length - 1)].getBoundingClientRect()
+            const left = target >= nodes.length ? rect.right : rect.left
+            dragState.indicator.style.left = (left - wrapperRect.left - 1) + 'px'
+            dragState.indicator.style.top = (rect.top - wrapperRect.top) + 'px'
+            dragState.indicator.style.width = '2px'
+            dragState.indicator.style.height = rect.height + 'px'
+          }
+        }
+        for (const node of layoutHandlesNodes) node.classList.remove('is-dragging')
+      } catch {}
+    }
+    const endHandleDrag = (event, handle) => {
+      if (dragState === null) return
+      const state = dragState
+      dragState = null
+      try { handle.releasePointerCapture(event.pointerId) } catch {}
+      if (state.indicator !== null) state.indicator.remove()
+      for (const node of rowHandles) node.classList.remove('is-dragging')
+      for (const node of colHandles) node.classList.remove('is-dragging')
+      wrapper.classList.remove('is-dragging-row')
+      wrapper.classList.remove('is-dragging-col')
+      if (!state.moved) return
+      skipNextClick = true
+      if (state.kind === 'row') moveRowTo(state.index, state.target)
+      else moveColumnTo(state.index, state.target)
+    }
     const layoutHandles = () => {
       try {
         const wrapperRect = wrapper.getBoundingClientRect()
@@ -716,9 +825,17 @@ class TableWidget extends WidgetType {
           handle.style.height = rect.height + 'px'
           if (current !== null && current.kind === 'row' && index >= current.start && index <= current.end) handle.classList.add('is-selected')
           handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+          handle.addEventListener('pointerdown', (event) => startHandleDrag('row', index, handle, event))
+          handle.addEventListener('pointermove', (event) => {
+            if (dragState !== null && dragState.moved) handle.classList.add('is-dragging')
+            updateDrag(event)
+          })
+          handle.addEventListener('pointerup', (event) => endHandleDrag(event, handle))
+          handle.addEventListener('pointercancel', (event) => endHandleDrag(event, handle))
           handle.addEventListener('click', (event) => {
             event.preventDefault()
             event.stopPropagation()
+            if (skipNextClick) { skipNextClick = false; return }
             applySelection('row', index, event.shiftKey)
             handle.focus()
           })
@@ -743,9 +860,17 @@ class TableWidget extends WidgetType {
           handle.style.width = rect.width + 'px'
           if (current !== null && current.kind === 'col' && index >= current.start && index <= current.end) handle.classList.add('is-selected')
           handle.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+          handle.addEventListener('pointerdown', (event) => startHandleDrag('col', index, handle, event))
+          handle.addEventListener('pointermove', (event) => {
+            if (dragState !== null && dragState.moved) handle.classList.add('is-dragging')
+            updateDrag(event)
+          })
+          handle.addEventListener('pointerup', (event) => endHandleDrag(event, handle))
+          handle.addEventListener('pointercancel', (event) => endHandleDrag(event, handle))
           handle.addEventListener('click', (event) => {
             event.preventDefault()
             event.stopPropagation()
+            if (skipNextClick) { skipNextClick = false; return }
             applySelection('col', index, event.shiftKey)
             handle.focus()
           })
@@ -800,8 +925,26 @@ class TableWidget extends WidgetType {
       }
       return lines.join('\n')
     }
-    const copySelection = () => {
-      const value = selectionToText()
+    const selectionToMarkdown = () => {
+      const range = selectionRange()
+      if (range === null) return ''
+      const lines = []
+      for (let rowIndex = range.start; rowIndex <= range.end; rowIndex += 1) {
+        const row = this.rows[rowIndex]
+        if (row === undefined) continue
+        const values = []
+        const firstCell = range.kind === 'row' ? 0 : range.start
+        const lastCell = range.kind === 'row' ? row.length - 1 : range.end
+        for (let cellIndex = firstCell; cellIndex <= lastCell; cellIndex += 1) {
+          const cell = row[cellIndex]
+          if (cell !== undefined) values.push((cell.text ?? '').trim())
+        }
+        lines.push('| ' + values.join(' | ') + ' |')
+      }
+      return lines.join('\n')
+    }
+    const copySelection = (asMarkdown) => {
+      const value = asMarkdown === true ? selectionToMarkdown() : selectionToText()
       if (value === '') return false
       const fallback = () => {
         try {
@@ -837,7 +980,7 @@ class TableWidget extends WidgetType {
       if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
         event.preventDefault()
         event.stopPropagation()
-        copySelection()
+        copySelection(event.shiftKey === true)
         return
       }
       if (event.key === 'Escape') {

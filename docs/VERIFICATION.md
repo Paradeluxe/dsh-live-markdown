@@ -156,6 +156,14 @@ A table that spans the full content width used to clip the add-column strip. The
 - Shift+click on column handles selects 2 columns (4 highlighted cells); Ctrl+C copies `名称\t数值\n丙\t3`; Delete removes both columns (3 → 1);
 - a plain click replaces the previous selection with a single row; zero page errors.
 
+## Drag reordering and Markdown copy (1.1.7)
+
+`gui-table-drag-check.mjs` (7 assertions, part of the GUI suite):
+
+- Ctrl+Shift+C on a two-row selection copies `| 甲 | 1 | 第一行 |\n| 乙 | 2 | 第二行 |`;
+- dragging the third row handle above the first row shows a drop indicator and leaves rows as 甲, 丙, 乙 both in the DOM and in the document;
+- dragging the last column handle to the left end reorders the header to 备注, 名称, 数值 with cell data following (第一行 | 甲 | 1); zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
