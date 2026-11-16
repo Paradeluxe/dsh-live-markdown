@@ -109,6 +109,19 @@ Asserted in a real page by clicking rendered anchors:
 | wikilink inside the target back to the source | switches back |
 | external https link | opens a browser page at the target URL and shows no copy hint |
 
+## Table add controls (1.1.0)
+
+Obsidian 1.15.1 was measured first (CDP): a full-width 16px plus strip below the table with `cursor: s-resize`, a 16px plus strip at the right edge with `cursor: e-resize`, lucide-plus glyphs, hidden until hover; clicking appends an empty row / a complete new column. The plugin reproduces those values.
+
+`gui-table-add-check.mjs` (run in the GUI suite, 11 assertions):
+
+- both plus strips exist and become visible on hover;
+- the row strip sits at the table’s bottom edge with >= table width, the column strip at its right edge with >= table height;
+- cursors are `s-resize` and `e-resize`;
+- clicking adds one rendered row / one rendered column and the document text matches;
+- the context menu still deletes a column and the rendered table updates;
+- after undo the editor still accepts input, with zero CM6 runtime errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

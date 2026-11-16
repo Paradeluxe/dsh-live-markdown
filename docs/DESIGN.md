@@ -2293,3 +2293,22 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 宿主默认行为：同一内容已打开则聚焦已有标签（去重），否则在活动面板新开标签；
 - 外部链接仍 window.open 新页面；解析失败才退回复制提示；
 - 实测：首次点击标签数 1→2 且原标签保留；切回原标签正常；重复点击同一目标标签数维持 2。
+
+---
+
+## 125. v1.1.0：表格加行/加列
+
+**Obsidian 实测（1.15.1，CDP 读取 DOM/CSS）**：
+
+- `.table-row-btn`：`top:100%; inset-inline-start:0; width:100%; height:16px; cursor:s-resize`，透明背景，`opacity:0`，悬停到按钮条自身时 `opacity:1`；`aria-label` 为「在下方新增行」；图标 lucide plus 16px；
+- `.table-col-btn`：`inset-inline-start:100%; top:0; height:100%; width:16px; cursor:e-resize`；`aria-label`「在右侧新增列」；
+- 点击后 Obsidian 会向表格追加空行 / 追加一整列（表头、分隔行、所有数据行同步补），并顺手把单元格按列宽补齐空格；
+- 另有行/列拖拽手柄（`.table-row-drag-handle` / `.table-col-drag-handle`，grip 图标）与右键菜单，本次未实现拖拽手柄。
+
+**本插件实现**：
+
+- 表格 DOM 结构：`.gh-md-cm6-table`（relative）> `.gh-md-cm6-table-scroll`（padding 16px 0；overflow-x auto）> `.gh-md-cm6-table-box`（inline-block，含 table 与两个 `+` 条）；
+- `+` 条用 `--gh-md-table-w/-h`（由 ResizeObserver 写入）精确定位在表格下缘与右缘；`opacity:0; pointer-events:none`，表格悬停时显示；
+- 点击后调用共享的 `applyEdit(mutate)`：**事务 1** 打开 `tableSourceMode` 并 `rebuildEffect`（表格切成源码态，block widget 先卸载）→ **事务 2** 修改表格文本（此时范围内没有 widget）→ **事务 3** 关闭 `tableSourceMode` 并重建（新行/列渲染出来），然后把光标放到表格后一行；
+- 右键菜单的所有行列操作复用同一个 `applyEdit`，因此也会立即刷新画面；
+- `TableWidget.eq()` 保持恒真（CM6 中途替换整块 widget 会破坏高度表），DOM 刷新完全由上述三步保证。

@@ -1,4 +1,4 @@
-import { EditorState, EditorSelection, StateField, StateEffect, Prec } from '@codemirror/state'
+import { EditorState, EditorSelection, StateField, StateEffect, Prec, Transaction } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType, keymap, drawSelection } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
@@ -50,7 +50,13 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-code:hover .gh-md-cm6-code-copy { opacity: 1; }
 .gh-md-cm6-lp .gh-md-cm6-code-copy:hover { background: rgb(175 184 193 / 25%); }
 .gh-md-cm6-lp .gh-md-cm6-code pre { margin: 0; padding: 10px 12px; overflow-x: auto; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.55; }
-.gh-md-cm6-lp .gh-md-cm6-table { margin: 0; padding: 16px 0; overflow-x: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table { position: relative; margin: 0; padding: 0; overflow: visible; }
+.gh-md-cm6-lp .gh-md-cm6-table-scroll { padding: 16px 0; overflow-x: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: var(--gh-md-table-w, 100%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: var(--gh-md-table-w, 100%); cursor: e-resize; }
+.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); }
 .gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: break-word; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
 .gh-md-cm6-lp .gh-md-cm6-table th { background: transparent; font-weight: 600; }
@@ -514,12 +520,16 @@ class TableWidget extends WidgetType {
   }
 
   eq() {
+    // 表格 DOM 的刷新由 applyEdit 的"源码态→编辑→渲染态"三步保证；
+    // 这里保持恒真，避免 CM6 在更新中途替换整块 widget（会破坏高度表）。
     return true
   }
 
   toDOM() {
     const wrapper = document.createElement('div')
     wrapper.className = 'gh-md-cm6-table'
+    const scroll = document.createElement('div')
+    scroll.className = 'gh-md-cm6-table-scroll'
     const table = document.createElement('table')
     const thead = document.createElement('thead')
     const headerRow = document.createElement('tr')
@@ -549,7 +559,111 @@ class TableWidget extends WidgetType {
       tbody.appendChild(tr)
     })
     table.appendChild(tbody)
-    wrapper.appendChild(table)
+    scroll.appendChild(table)
+    wrapper.appendChild(scroll)
+
+    // 与 Obsidian 一致：表格右边 / 下方悬停出现“+”条，点一下追加一列 / 一行。
+    const plusIcon = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.6v8.8"/><path d="M3.6 8h8.8"/></svg>'
+    const applyEdit = (mutate) => {
+      const view = this.host === null || this.host === undefined ? null : this.host.view
+      if (view === null || view === undefined) return
+      const doc = view.state.doc
+      const block = parseTableBlock(doc, this.tableFrom, this.tableTo)
+      if (block.rows.length === 0) return
+      const cols = block.rows[0].length
+      const separatorCells = block.separatorIndex >= 0 ? parseCells(block.lines[block.separatorIndex].text) : new Array(cols).fill('---')
+      while (separatorCells.length < cols) separatorCells.push('---')
+      const nextRows = block.rows.map((row) => row.slice())
+      const nextSeparator = separatorCells.slice()
+      if (mutate(nextRows, nextSeparator) === false) return
+      const tableText = buildTableText(nextRows, nextSeparator)
+      const tableFrom = this.tableFrom
+      const tableTo = this.tableTo
+      // 表格是覆盖整块的 block widget：在它自身范围内改文本会让 CM6 在更新中途替换
+      // 高度表（不刷新 / "No tile" 崩溃）。所以先用一个独立事务把该表格切成源码态
+      //（widget 先被移除），再改文本，最后恢复渲染态——每一步都是独立的 transaction。
+      try {
+        tableSourceMode = true
+        view.dispatch({ effects: rebuildEffect.of(null) })
+      } catch {
+        tableSourceMode = false
+        return
+      }
+      window.setTimeout(() => {
+        try {
+          const current = view.state.doc
+          const from = Math.min(tableFrom, current.length)
+          const to = Math.min(tableTo, current.length)
+          view.dispatch({
+            changes: { from, to, insert: tableText },
+            annotations: Transaction.addToHistory.of(false),
+          })
+        } catch {
+          // 编辑失败时也要恢复渲染态
+        }
+        window.setTimeout(() => {
+          try {
+            tableSourceMode = false
+            view.dispatch({ effects: rebuildEffect.of(null) })
+            const currentDoc = view.state.doc
+            const tableEnd = Math.min(tableFrom + tableText.length, currentDoc.length)
+            const afterLine = Math.min(currentDoc.lineAt(tableEnd).number + 1, currentDoc.lines)
+            view.dispatch({ selection: { anchor: currentDoc.line(afterLine).from } })
+            view.focus()
+          } catch {}
+        }, 24)
+      }, 24)
+    }
+    const addRow = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      applyEdit((rows) => {
+        rows.push(new Array(rows[0].length).fill(''))
+      })
+    }
+    const addColumn = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      applyEdit((rows, separator) => {
+        for (const row of rows) row.push('')
+        separator.push('---')
+      })
+    }
+    const rowButton = document.createElement('div')
+    rowButton.className = 'gh-md-cm6-table-add-row'
+    rowButton.setAttribute('role', 'button')
+    rowButton.setAttribute('tabindex', '-1')
+    rowButton.setAttribute('aria-label', '在下方新增行')
+    rowButton.setAttribute('title', '在下方新增行')
+    rowButton.innerHTML = plusIcon
+    rowButton.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+    rowButton.addEventListener('click', addRow)
+    const colButton = document.createElement('div')
+    colButton.className = 'gh-md-cm6-table-add-col'
+    colButton.setAttribute('role', 'button')
+    colButton.setAttribute('tabindex', '-1')
+    colButton.setAttribute('aria-label', '在右侧新增列')
+    colButton.setAttribute('title', '在右侧新增列')
+    colButton.innerHTML = plusIcon
+    colButton.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+    colButton.addEventListener('click', addColumn)
+    wrapper.appendChild(rowButton)
+    wrapper.appendChild(colButton)
+    const syncTableSize = () => {
+      try {
+        const rect = table.getBoundingClientRect()
+        wrapper.style.setProperty('--gh-md-table-w', Math.round(rect.width) + 'px')
+        wrapper.style.setProperty('--gh-md-table-h', Math.round(rect.height) + 'px')
+      } catch {}
+    }
+    syncTableSize()
+    if (typeof ResizeObserver === 'function') {
+      try {
+        const observer = new ResizeObserver(() => syncTableSize())
+        observer.observe(table)
+        window.setTimeout(syncTableSize, 60)
+      } catch {}
+    }
     const renderCell = (node, raw) => {
       if (this.host.renderInline !== undefined && document.activeElement !== node) {
         const html = this.host.renderInline(raw)
@@ -651,17 +765,7 @@ class TableWidget extends WidgetType {
       const cols = block.rows[0].length
       const separatorCells = block.separatorIndex >= 0 ? parseCells(block.lines[block.separatorIndex].text) : new Array(cols).fill('---')
       while (separatorCells.length < cols) separatorCells.push('---')
-      const apply = (mutate) => {
-        const nextRows = block.rows.map((row) => row.slice())
-        const nextSeparator = separatorCells.slice()
-        const result = mutate(nextRows, nextSeparator)
-        if (result === false) return
-        const text = buildTableText(nextRows, nextSeparator)
-        const current = view.state.doc
-        const from = Math.min(this.tableFrom, current.length)
-        const to = Math.min(this.tableTo, current.length)
-        view.dispatch({ changes: { from, to, insert: text } })
-      }
+      const apply = (mutate) => applyEdit(mutate)
       const items = [
         ['在上方插入行', () => apply((rows) => { rows.splice(rowIndex, 0, new Array(cols).fill('')) })],
         ['在下方插入行', () => apply((rows) => { rows.splice(rowIndex + 1, 0, new Array(cols).fill('')) })],
@@ -1397,6 +1501,11 @@ function buildDecorations(state, resolveImage, renderMath, host) {
       if (tableRows.length > 0) {
         const tableFrom = doc.line(line).from
         const tableTo = doc.line(endLine).to
+        if (tableSourceMode) {
+          // 临时源码态：不生成 block widget，让这次编辑作用在纯文本行上。
+          line = endLine + 1
+          continue
+        }
         const tableLines = []
         for (let n = line; n <= endLine; n += 1) tableLines.push(doc.line(n).text)
         const alignments = parseAlignmentsFromLines(tableLines)
@@ -2075,6 +2184,9 @@ function pastePlainTextCommand(view) {
   }).catch(() => {})
   return true
 }
+
+/** 为 true 时所有表格临时以源码态渲染（避免在 block widget 内部改文本）。 */
+let tableSourceMode = false
 
 let activeHost = null
 
