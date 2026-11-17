@@ -2385,3 +2385,15 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 删除语义：选区覆盖所有列 → 删行；覆盖所有行 → 删列；否则清空矩形内单元格内容（applyEdit 里的 rows 是字符串数组，直接赋空字符串）；
 - 复制：selectionToText / selectionToMarkdown 支持 cell 矩形；
 - 生命周期：document 级 mouseup / selectstart 监听在 TableWidget.destroy(dom) 里移除（wrapper.__ghMdTableCleanup）；destroy 不得重置 tableSourceMode，否则会破坏"源码态 → 改文本 → 渲染态"的三段式编辑。
+
+---
+
+## 134. v1.1.9：表格选择的删除可靠性
+
+- 现象：桌面版里选中整行/整列后按 Backspace 无反应；
+- 根因：选区 keydown 监听绑在表格 wrapper 上，桌面版焦点被 CM6 收回到 `cm-content` 时事件不经过 wrapper；同时原实现点击表格外不会取消选区；
+- 修复：选区存在时在 **window 捕获阶段**处理 Backspace/Delete/Ctrl+C/Esc；点击表格外（document mousedown）取消选区；
+- 参差表格：整行判定改为逐行比较 `range.colEnd >= row.length - 1`；
+- 资源缓存：`loadScriptOnce` / `loadStyleOnce` 统一走 `withBuildVersion()`，给 URL 加 `?v=<BUILD_STAMP>`；
+- 加列按钮：wrapper 预留 `padding-right: 18px`，`.gh-md-cm6-table-scroll` 占内容宽度，加号条用 `left: min(表格宽度, 100% - 18px)` 落在 gutter，不再覆盖最后一列；行加号条宽度同样 clamp；
+- 回归：`gui-table-delete-focus-check.mjs` 用真实鼠标拖拽 + 手动 focus 到 `cm-content` 复现并验证修复。

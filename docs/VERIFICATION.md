@@ -174,6 +174,23 @@ A table that spans the full content width used to clip the add-column strip. The
 - dragging a 2x2 rectangle highlights 4 cells and Backspace clears their contents while the table keeps 3 rows and 3 columns;
 - Ctrl+C copies the range as TSV; zero page errors.
 
+## Table selection deletion with stolen focus (1.1.9)
+
+`gui-table-delete-focus-check.mjs` (5 assertions, part of the GUI suite):
+
+- a real mouse drag across a row highlights all three cells;
+- after moving focus to `.cm-content` (simulating the desktop shell), Backspace still deletes the row (3 -> 2);
+- handle-based selection also deletes after the same focus move;
+- clicking outside the table clears the selection, so Backspace does not delete anything; zero page errors.
+
+## Column plus gutter (1.1.9)
+
+Measured in the real GUI with a full-width 5-column table:
+
+- table right edge = wrapper right - 18px (gutter reserved),
+- add-column plus left edge = table right edge, so its overlay over the table is 0px; the strip is visible on hover inside the gutter,
+- narrow tables keep the plus adjacent to the table edge.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

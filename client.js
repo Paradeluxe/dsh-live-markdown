@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.8'
+      const BUILD_STAMP = '1.1.9'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -1060,7 +1060,19 @@ function installImageLightbox() {
        * @param url - 同源脚本地址。
        * @returns 加载完成的 Promise。
        */
-      function loadScriptOnce(url) {
+      /** 给静态资源 URL 加上构建版本号，确保升级后不会命中旧缓存。 */
+      const withBuildVersion = (raw) => {
+        try {
+          const url = new URL(raw, document.baseURI)
+          url.searchParams.set('v', BUILD_STAMP)
+          return url.href
+        } catch {
+          return raw
+        }
+      }
+
+      function loadScriptOnce(rawUrl) {
+        const url = withBuildVersion(rawUrl)
         return new Promise((resolve, reject) => {
           const existing = document.querySelector(`script[data-github-md="${url}"]`)
           if (existing !== null) {
@@ -1090,7 +1102,8 @@ function installImageLightbox() {
        * @param href - 同源 CSS 地址。
        * @returns 无。
        */
-      function loadStyleOnce(href) {
+      function loadStyleOnce(rawHref) {
+        const href = withBuildVersion(rawHref)
         if (document.querySelector(`link[data-github-md="${href}"]`) !== null) return
         const link = document.createElement('link')
         link.rel = 'stylesheet'

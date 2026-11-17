@@ -50,10 +50,10 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-code:hover .gh-md-cm6-code-copy { opacity: 1; }
 .gh-md-cm6-lp .gh-md-cm6-code-copy:hover { background: rgb(175 184 193 / 25%); }
 .gh-md-cm6-lp .gh-md-cm6-code pre { margin: 0; padding: 10px 12px; overflow-x: auto; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.55; }
-.gh-md-cm6-lp .gh-md-cm6-table { position: relative; margin: 0; padding: 0; overflow: visible; }
+.gh-md-cm6-lp .gh-md-cm6-table { position: relative; margin: 0; padding: 0 18px 0 0; overflow: visible; }
 .gh-md-cm6-lp .gh-md-cm6-table-scroll { padding: 16px 0; overflow-x: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: var(--gh-md-table-w, 100%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table-col-handle { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); background: transparent; border-radius: 4px; opacity: 0; pointer-events: none; cursor: pointer; z-index: 2; transition: opacity .12s ease, color .12s ease, background-color .12s ease; }
@@ -1027,7 +1027,10 @@ class TableWidget extends WidgetType {
       } else {
         // 跨格选区：覆盖整行 → 删行；覆盖整列 → 删列；否则清空单元格内容
         const columns = (this.rows[0] ?? []).length
-        const allColumns = range.colStart === 0 && range.colEnd === columns - 1
+        // 参差表格：只要选区覆盖到"每一行自己的最后一个单元格"，就算整行选中。
+        const allColumns = range.colStart === 0 && this.rows
+          .slice(range.rowStart, range.rowEnd + 1)
+          .every((row) => range.colEnd >= (row === undefined ? 0 : row.length - 1))
         const allRows = range.rowStart === 0 && range.rowEnd === this.rows.length - 1
         if (allColumns && !allRows) {
           applyEdit((rows) => {
@@ -1113,6 +1116,8 @@ class TableWidget extends WidgetType {
     wrapper.__ghMdTableCleanup = () => {
       document.removeEventListener('mouseup', onDocumentMouseUp)
       document.removeEventListener('selectstart', onDocumentSelectStart)
+      window.removeEventListener('keydown', onWindowKeyDown, true)
+      document.removeEventListener('mousedown', onDocumentMouseDown, true)
     }
     wrapper.addEventListener('click', (event) => {
       if (skipCellClick) {
@@ -1126,7 +1131,7 @@ class TableWidget extends WidgetType {
       if (target.closest('th,td') !== null && selection !== null) clearSelection()
     })
 
-    wrapper.addEventListener('keydown', (event) => {
+    const onWindowKeyDown = (event) => {
       if (selection === null) return
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault()
@@ -1145,7 +1150,17 @@ class TableWidget extends WidgetType {
         event.stopPropagation()
         clearSelection()
       }
-    })
+    }
+    window.addEventListener('keydown', onWindowKeyDown, true)
+    // 点到表格以外就取消选择，避免全局 keydown 误伤其它输入框。
+    const onDocumentMouseDown = (event) => {
+      if (selection === null) return
+      const target = event.target
+      if (target === null || typeof target.closest !== 'function') return
+      if (wrapper.contains(target)) return
+      clearSelection()
+    }
+    document.addEventListener('mousedown', onDocumentMouseDown, true)
     const syncTableSize = () => {
       try {
         const rect = table.getBoundingClientRect()
