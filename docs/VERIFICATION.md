@@ -257,6 +257,17 @@ After 1.1.11 long unbroken tokens could not wrap. The renderer now inserts <wbr>
 - Delete on a 1x2 rectangle clears those two cells and keeps the row;
 - zero page errors.
 
+## Table selection edge cases (1.1.16)
+
+gui-table-obsidian-check.mjs is now 33 assertions; the new ones below were first measured in Obsidian over CDP and then reproduced character-for-character:
+
+- mixed CJK/ASCII table copies as `| 中   | ab   |` / `| --- | ---- |` / `| 中文  | abcd |` / `| a   | 中文字  |`;
+- a cell containing `<br>` copies verbatim (`| 第一行<br>第二行 |`) with the column sized by the raw text;
+- a cell containing an escaped pipe keeps two columns in the DOM and copies `a \| b`;
+- Ctrl+C with a caret in a cell copies the whole cell (`1`), Ctrl+X does the same and clears the cell;
+- dragging below the table selects the remaining rows down to the last one, dragging above clamps to the header row (8 cells);
+- numeric sort ascending yields 1, 2, 10.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

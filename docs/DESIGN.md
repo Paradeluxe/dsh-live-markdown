@@ -2465,3 +2465,14 @@ Obsidian（CDP 实测）的表格选区模型：
 - `cutSelection()`：复制后复用 `deleteSelection()`，删除语义与 Delete 完全一致；
 - `cellAnchor`：记录最后一次单击的单元格，`Shift+点击` 用它当锚点（Obsidian 在 `Esc` 之后仍保留锚点），选区存在时则直接扩展；
 - 菜单：`行`/`列` 用 `:hover` 展开的 `.gh-md-cm6-table-submenu`；移动行/列、排序全部走 `applyEdit`，与拖拽排序共用同一条提交路径；排序保留 `rows[0]` 表头，`localeCompare(numeric: true)` 让「2」排在「10」前面。
+
+---
+
+## 141. v1.1.16：表格边角行为（Obsidian 实测）
+
+- **列宽按字符数**：Obsidian 的表格序列化用 `String.length` 补空格（中文 1 格），不是显示宽度；`serializeMarkdownTable` 本来就按字符数，本轮用中英混排表格验证了逐字符一致。
+- **`<br>` 原样保留**：单元格原始文本里的 `<br>` 不转换，列宽按原始字符串长度；复制时与 Obsidian 相同。
+- **转义竖线 `\|`**：新增 `splitTableSegments(raw)`——遇到 `\` 跳过一个字符，`\|` 不再当列分隔符；`parseTableRowsFromDoc`、`parseCells`、`cellRangeInLine` 与装饰器里的表格解析统一走它，因此渲染、复制、编辑都保留 `\|`。
+- **整格复制/剪切**：`onWindowKeyDown` 在「无矩形选区 + 焦点在 td/th + 没有原生文本选区」时拦截 `Ctrl+C`/`Ctrl+X`：`writePlainText(单元格文本)`，剪切时再走 `applyEdit` 把该格清空（Obsidian 行为）。
+- **拖出表格的钳制**：`cellAtPoint(clientX, clientY)` 按行/列矩形把指针钳制到最近单元格；`mousemove` 在指针不在单元格上时用它继续扩展选区，与 Obsidian 的越界拖拽一致（向下→最后一行、向上→表头、向右→最后一列）。
+- **数字排序**：`localeCompare(..., { numeric: true })`，1 < 2 < 10。

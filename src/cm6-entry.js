@@ -434,6 +434,21 @@ class CodeBlockWidget extends WidgetType {
   }
 }
 
+// 按未转义的竖线切分表格行；\| 是单元格内的字面竖线，不参与切分。
+function splitTableSegments(raw) {
+  const segments = []
+  let segStart = 0
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw[i] === '\\') { i += 1; continue }
+    if (raw[i] === '|') {
+      segments.push({ start: segStart, end: i })
+      segStart = i + 1
+    }
+  }
+  segments.push({ start: segStart, end: raw.length })
+  return segments
+}
+
 function parseTableRowsFromDoc(doc, from, to) {
   const rows = []
   const startLine = doc.lineAt(from).number
@@ -442,14 +457,7 @@ function parseTableRowsFromDoc(doc, from, to) {
     const info = doc.line(n)
     if (/^\s*\|?\s*:?-{2,}/u.test(info.text.trim())) continue
     const raw = info.text
-    const segments = []
-    let segStart = 0
-    for (let i = 0; i <= raw.length; i += 1) {
-      if (i === raw.length || raw[i] === '|') {
-        segments.push({ start: segStart, end: i })
-        segStart = i + 1
-      }
-    }
+    const segments = splitTableSegments(raw)
     let segs = segments
     if (segs.length > 0 && raw.slice(segs[0].start, segs[0].end).trim() === '' && /^\s*\|/u.test(raw)) segs = segs.slice(1)
     if (segs.length > 0 && raw.slice(segs[segs.length - 1].start, segs[segs.length - 1].end).trim() === '' && /\|\s*$/u.test(raw)) segs = segs.slice(0, -1)
@@ -459,14 +467,7 @@ function parseTableRowsFromDoc(doc, from, to) {
 }
 
 function parseCells(raw) {
-  const segments = []
-  let segStart = 0
-  for (let i = 0; i <= raw.length; i += 1) {
-    if (i === raw.length || raw[i] === '|') {
-      segments.push({ start: segStart, end: i })
-      segStart = i + 1
-    }
-  }
+  const segments = splitTableSegments(raw)
   let segs = segments
   if (segs.length > 0 && raw.slice(segs[0].start, segs[0].end).trim() === '' && /^\s*\|/u.test(raw)) segs = segs.slice(1)
   if (segs.length > 0 && raw.slice(segs[segs.length - 1].start, segs[segs.length - 1].end).trim() === '' && /\|\s*$/u.test(raw)) segs = segs.slice(0, -1)
@@ -513,14 +514,7 @@ function buildTableText(rows, separatorCells) {
 
 function cellRangeInLine(lineInfo, cellIndex) {
   const raw = lineInfo.text
-  const segments = []
-  let segStart = 0
-  for (let i = 0; i <= raw.length; i += 1) {
-    if (i === raw.length || raw[i] === '|') {
-      segments.push({ start: segStart, end: i })
-      segStart = i + 1
-    }
-  }
+  const segments = splitTableSegments(raw)
   let segs = segments
   if (segs.length > 0 && raw.slice(segs[0].start, segs[0].end).trim() === '' && /^\s*\|/u.test(raw)) segs = segs.slice(1)
   if (segs.length > 0 && raw.slice(segs[segs.length - 1].start, segs[segs.length - 1].end).trim() === '' && /\|\s*$/u.test(raw)) segs = segs.slice(0, -1)
@@ -1043,6 +1037,31 @@ class TableWidget extends WidgetType {
     const selectionToMarkdown = () => serializeMarkdownTable(selectionMatrix())
     const selectionToHtml = () => serializeHtmlTable(selectionMatrix())
 
+    const writePlainText = (value) => {
+      const fallback = () => {
+        try {
+          const area = document.createElement('textarea')
+          area.value = value
+          area.style.position = 'fixed'
+          area.style.opacity = '0'
+          document.body.appendChild(area)
+          area.select()
+          const ok = document.execCommand('copy')
+          area.remove()
+          return ok
+        } catch {
+          return false
+        }
+      }
+      try {
+        if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(value).catch(() => { fallback() })
+          return true
+        }
+      } catch {}
+      return fallback()
+    }
+
     const copySelection = (mode) => {
       const asTsv = mode === 'tsv'
       const value = asTsv ? selectionToText() : selectionToMarkdown()
@@ -1201,24 +1220,59 @@ class TableWidget extends WidgetType {
       cellAnchor = { row: Number(cell.dataset.row), col: Number(cell.dataset.cell) }
       cellDrag = { row: Number(cell.dataset.row), col: Number(cell.dataset.cell), startX: event.clientX, startY: event.clientY, active: false }
     })
+    // 指针离开表格时，按几何位置钳制到最近的行/列（Obsidian 拖出表格边界也会继续扩展选区）。
+    const cellAtPoint = (clientX, clientY) => {
+      try {
+        const rows = Array.from(table.querySelectorAll('thead tr, tbody tr'))
+        if (rows.length === 0) return null
+        const rowRects = rows.map((row) => row.getBoundingClientRect())
+        let rowIndex = rowRects.length - 1
+        if (clientY <= rowRects[0].top) {
+          rowIndex = 0
+        } else {
+          rowIndex = rowRects.length - 1
+          for (let index = 0; index < rowRects.length; index += 1) {
+            if (clientY >= rowRects[index].top && clientY <= rowRects[index].bottom) { rowIndex = index; break }
+            if (clientY < rowRects[index].top) { rowIndex = Math.max(0, index - 1); break }
+          }
+        }
+        const cells = Array.from(rows[rowIndex].children)
+        if (cells.length === 0) return null
+        const cellRects = cells.map((cell) => cell.getBoundingClientRect())
+        let colIndex = cellRects.length - 1
+        if (clientX <= cellRects[0].left) {
+          colIndex = 0
+        } else {
+          colIndex = cellRects.length - 1
+          for (let index = 0; index < cellRects.length; index += 1) {
+            if (clientX >= cellRects[index].left && clientX <= cellRects[index].right) { colIndex = index; break }
+            if (clientX < cellRects[index].left) { colIndex = Math.max(0, index - 1); break }
+          }
+        }
+        return { row: rowIndex, col: colIndex }
+      } catch {
+        return null
+      }
+    }
     wrapper.addEventListener('mousemove', (event) => {
       if (cellDrag === null) return
       const target = event.target
-      const cell = target === null || typeof target.closest !== 'function' ? null : target.closest('th,td')
+      const targetCell = target === null || typeof target.closest !== 'function' ? null : target.closest('th,td')
+      const hit = targetCell !== null
+        ? { row: Number(targetCell.dataset.row), col: Number(targetCell.dataset.cell) }
+        : cellAtPoint(event.clientX, event.clientY)
       if (!cellDrag.active) {
         const distance = Math.abs(event.clientX - cellDrag.startX) + Math.abs(event.clientY - cellDrag.startY)
-        if (distance < 6 || cell === null) return
-        const row = Number(cell.dataset.row)
-        const col = Number(cell.dataset.cell)
-        if (row === cellDrag.row && col === cellDrag.col) return
+        if (distance < 6 || hit === null) return
+        if (hit.row === cellDrag.row && hit.col === cellDrag.col) return
         cellDrag.active = true
         wrapper.classList.add('is-cell-selecting')
         try { window.getSelection()?.removeAllRanges() } catch {}
         wrapper.tabIndex = -1
         try { wrapper.focus({ preventScroll: true }) } catch {}
       }
-      if (cell === null) return
-      applyCellSelection(cellDrag.row, cellDrag.col, Number(cell.dataset.row), Number(cell.dataset.cell))
+      if (hit === null) return
+      applyCellSelection(cellDrag.row, cellDrag.col, hit.row, hit.col)
     })
     const onDocumentMouseUp = () => {
       if (cellDrag === null) return
@@ -1250,6 +1304,33 @@ class TableWidget extends WidgetType {
     })
 
     const onWindowKeyDown = (event) => {
+      const eventTarget = event.target
+      const targetCell = eventTarget === null || typeof eventTarget.closest !== 'function' ? null : eventTarget.closest('td,th')
+      const hasNativeSelection = (() => {
+        try { return String(window.getSelection() ?? '').length > 0 } catch { return false }
+      })()
+      // 光标在单元格里、没有文本选区、也没有矩形选区：Obsidian 的 Ctrl+C/Ctrl+X 作用在整格上。
+      if (selection === null && targetCell !== null && !hasNativeSelection && (event.ctrlKey || event.metaKey)) {
+        const isCopy = (event.key === 'c' || event.key === 'C') && event.shiftKey !== true
+        const isCut = event.key === 'x' || event.key === 'X'
+        if (isCopy || isCut) {
+          const raw = String(targetCell.textContent ?? '')
+          event.preventDefault()
+          event.stopPropagation()
+          if (raw !== '') writePlainText(raw)
+          if (isCut && raw !== '') {
+            const rowIndex = Number(targetCell.dataset.row)
+            const colIndex = Number(targetCell.dataset.cell)
+            applyEdit((rows) => {
+              const row = rows[rowIndex]
+              if (row === undefined) return false
+              row[colIndex] = ''
+              return true
+            })
+          }
+          return
+        }
+      }
       if (selection === null) return
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault()
@@ -2273,14 +2354,7 @@ function buildDecorations(state, resolveImage, renderMath, host) {
         const info = doc.line(n)
         if (/^\s*\|?\s*:?-{2,}/u.test(info.text.trim())) continue
         const raw = info.text
-        const segments = []
-        let segStart = 0
-        for (let i = 0; i <= raw.length; i += 1) {
-          if (i === raw.length || raw[i] === '|') {
-            segments.push({ start: segStart, end: i })
-            segStart = i + 1
-          }
-        }
+        const segments = splitTableSegments(raw)
         let segs = segments
         if (segs.length > 0 && raw.slice(segs[0].start, segs[0].end).trim() === '' && /^\s*\|/u.test(raw)) segs = segs.slice(1)
         if (segs.length > 0 && raw.slice(segs[segs.length - 1].start, segs[segs.length - 1].end).trim() === '' && /\|\s*$/u.test(raw)) segs = segs.slice(0, -1)
