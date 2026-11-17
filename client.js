@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.11'
+      const BUILD_STAMP = '1.1.12'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -1254,7 +1254,7 @@ function installImageLightbox() {
 .gh-md-document .cm-editor.cm-focused,.gh-md-cm6-document .cm-editor.cm-focused,
 .gh-md-document .cm-editor:focus,.gh-md-cm6-document .cm-editor:focus,
 .gh-md-document .cm-editor:focus-visible,.gh-md-cm6-document .cm-editor:focus-visible{outline:none!important}
-.gh-md-document{min-width:0;overflow-wrap:anywhere;white-space:normal;padding:16px 24px 24px;font-family:var(--gh-md-read-font,"Literata Variable","Noto Serif SC","Source Han Serif SC",Georgia,"SimSun",serif);font-size:var(--gh-md-read-size,16px);line-height:var(--gh-md-read-line,1.75);color:var(--dsw-alias-label-primary)}
+.gh-md-document{min-width:0;overflow-wrap:anywhere;white-space:normal;padding:16px 32px 24px;font-family:var(--gh-md-read-font,"Literata Variable","Noto Serif SC","Source Han Serif SC",Georgia,"SimSun",serif);font-size:var(--gh-md-read-size,16px);line-height:var(--gh-md-read-line,1.75);color:var(--dsw-alias-label-primary)}
 .gh-md-document>:first-child,.gh-md-document p:first-child{margin-top:0!important}
 .gh-md-document>:last-child,.gh-md-document p:last-child{margin-bottom:0!important}
 .gh-md-document strong{font-weight:600}

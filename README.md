@@ -410,3 +410,12 @@ MIT — see [LICENSE](LICENSE).
 4. 实测：`configuration`、`checkpointing`、`wikitext_n1000_L128.jsonl` 等单词完整显示，只有带连字符的 `WikiText-103` 在连字符处换行（标准排版行为）。
 
 新增 `gui-table-wrap-check.mjs`（5 项）：无单词被切断、`word-break: normal`、`overflow-wrap: normal`、表格适配或可横向滚动、无报错。
+
+## 1.1.12（v1.1.12）：页面左右留白加一点
+
+- `.gh-md-document` 左右内边距 **24px → 32px**；
+- 同时把 CM6 `.cm-content` 的内边距从「左 18 / 右 0」改为「左右各 18」（那 18px 是给折叠箭头留的空间），于是正文左右留白变成 **50 / 50 对称**（之前实际是 42 / 24，左侧明显更宽）；
+- 表格、图片、引用等块级内容与正文左边缘对齐（都从 50px 开始）；
+- 折叠箭头保留在 `.cm-content` 左侧的 18px 空间里，悬停展开/折叠不受影响（已回归 heading/list/ordered/task 四组折叠检查）。
+
+实测：`.gh-md-document` 计算值 `padding: 16px 32px 24px`，`.cm-line` 距左右各 50px；`gui-width-check` 的页边距断言收紧为「≥28px 且左右相等」。

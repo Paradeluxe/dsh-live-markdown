@@ -214,6 +214,12 @@ Obsidian 1.15.1 was measured first: cells use `word-break: normal; overflow-wrap
 
 At a 760px viewport the same table renders "configuration", "checkpointing", "dim_batch=2", "wikitext_n1000_L128.jsonl" intact and wraps only at spaces (hyphenated tokens break after the hyphen, standard typography).
 
+## Page side padding (1.1.12)
+
+Measured in the running GUI: `.gh-md-document` computes to `padding: 16px 32px 24px`; `.cm-content` computes to `padding: 4px 18px`; a `.cm-line` sits 50px from the document left edge and 50px from its right edge (was 42 / 24).
+
+`gui-width-check` now asserts page margins of at least 28px and equal left/right; `gui-spacing-check` still passes its fold-chevron hover assertions.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

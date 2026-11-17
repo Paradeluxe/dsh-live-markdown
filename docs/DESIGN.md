@@ -2417,3 +2417,12 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 **本插件**：单元格改为 `word-break: normal; overflow-wrap: normal`（只在空格换行，绝不切断单词）；表格 `max-width: none`（按内容撑开）；`.gh-md-cm6-table-scroll` 保持 `overflow-x: auto` 并加细滚动条样式。
 
 验证脚本用 Range.getClientRects 检查每个单词是否跨行：`gui-table-wrap-check.mjs` 断言无单词跨行，且 760px 窄面板下 `configuration`/`checkpointing`/`dim_batch=2` 都完整显示。
+
+---
+
+## 137. v1.1.12：页面左右留白
+
+- `.gh-md-document` 左右内边距由 24px 调到 32px（上下保持 16 / 24，`gui-width-check` 的 bottom margin 断言仍满足）；
+- `.gh-md-cm6-lp .cm-content` 由 `padding: 4px 0 4px 18px` 改为 `padding: 4px 18px`：左侧 18px 是折叠箭头预留空间（不能归零，否则箭头被裁掉、四组折叠检查全挂），右侧补同样的 18px 让正文左右对称；最终正文距页面边缘 50 / 50；
+- 折叠箭头留在 `.cm-content` 左侧的 18px 空间，悬停仍可见可点（回归 heading/list/ordered/task 折叠检查全过）；
+- `gui-width-check` 断言改为 `padLeft >= 28 && padLeft <= 36 && padRight === padLeft`，锁定左右对称的页边距。

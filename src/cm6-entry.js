@@ -13,7 +13,7 @@ import { markdown, insertNewlineContinueMarkup, deleteMarkupBackward } from '@co
 const STYLE_ID = 'gh-md-cm6-lp-style'
 const CSS = `
 .gh-md-cm6-lp { font-family: var(--gh-md-read-font, "Literata Variable", "Noto Serif SC", "Source Han Serif SC", Georgia, "SimSun", serif); font-size: var(--gh-md-read-size, 16px); line-height: var(--gh-md-read-line, 1.65); color: var(--dsw-alias-label-primary, #1f2328); background: transparent; }
-.gh-md-cm6-lp .cm-content, .cm-content.gh-md-cm6-lp { padding: 4px 0 4px 18px; }
+.gh-md-cm6-lp .cm-content, .cm-content.gh-md-cm6-lp { padding: 4px 18px; }
 .gh-md-cm6-lp .cm-line { padding: 0 2px; }
 .gh-md-cm6-lp .cm-editor, .gh-md-cm6-lp .cm-content { outline: none !important; }
 .gh-md-cm6-lp :focus-visible { outline: none !important; }
