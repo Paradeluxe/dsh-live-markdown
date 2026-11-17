@@ -390,3 +390,23 @@ MIT — see [LICENSE](LICENSE).
 3. 新增 `gui-table-click-edge-check.mjs`（6 项）：偏心点击不加行、光标落在表格后的空行、居中 `+` 仍能加行、点右缘外侧不加列。
 
 如果你遇到的"点哪儿跳到下面"不在表格边缘（比如普通段落之间也会跳），把出问题的文件和大致位置告诉我，我按那个场景继续查。
+
+## 1.1.11（v1.1.11）：表格换行不再切断单词（对齐 Obsidian）
+
+用 Obsidian 1.15 实测了它的表格换行行为（CDP 读计算样式）：
+
+| 属性 | Obsidian 实测值 |
+|---|---|
+| `word-break` | `normal` |
+| `overflow-wrap` | `normal` |
+| `white-space` | `break-spaces` |
+| `table` | `width: auto; max-width: none; table-layout: auto`（按内容宽度，超宽时表格控件 `overflow-x: auto` 横向滚动） |
+
+之前我们的单元格用了 `word-break: break-word`，在窄列里会把 `configuration`、`checkpointing`、`dim_batch=2` 这类单词从中间切断。现在改为：
+
+1. 单元格 `word-break: normal; overflow-wrap: normal`——**单词永远不会被切断**，只在空格处换行；
+2. 表格 `max-width: none`——列宽按内容（最长的单词）撑开，跟 Obsidian 一致；
+3. 表格比面板宽时在表格内**横向滚动**（滚动条已加细样式），而不是把文字压到断词；
+4. 实测：`configuration`、`checkpointing`、`wikitext_n1000_L128.jsonl` 等单词完整显示，只有带连字符的 `WikiText-103` 在连字符处换行（标准排版行为）。
+
+新增 `gui-table-wrap-check.mjs`（5 项）：无单词被切断、`word-break: normal`、`overflow-wrap: normal`、表格适配或可横向滚动、无报错。

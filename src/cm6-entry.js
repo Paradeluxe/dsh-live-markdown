@@ -52,6 +52,10 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-code pre { margin: 0; padding: 10px 12px; overflow-x: auto; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.55; }
 .gh-md-cm6-lp .gh-md-cm6-table { position: relative; margin: 0; padding: 0 18px 0 0; overflow: visible; }
 .gh-md-cm6-lp .gh-md-cm6-table-scroll { padding: 16px 0; overflow-x: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table-scroll { scrollbar-width: thin; scrollbar-color: var(--dsw-alias-border-l2, #d0d7de) transparent; }
+.gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar { height: 8px; }
+.gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar-thumb { background: var(--dsw-alias-border-l2, #d0d7de); border-radius: 4px; }
+.gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar-track { background: transparent; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row { left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) / 2); width: 64px; transform: translateX(-50%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 50%; height: 64px; transform: translateY(-50%); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
@@ -69,8 +73,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-col-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
-.gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
-.gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: break-word; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
+.gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: none; margin: 0; table-layout: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: normal; overflow-wrap: normal; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
 .gh-md-cm6-lp .gh-md-cm6-table th { background: transparent; font-weight: 600; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { text-align: left; }
 .gh-md-cm6-lp .gh-md-lp-h1, .gh-md-cm6-lp .gh-md-lp-h2, .gh-md-cm6-lp .gh-md-lp-h3, .gh-md-cm6-lp .gh-md-lp-h4, .gh-md-cm6-lp .gh-md-lp-h5, .gh-md-cm6-lp .gh-md-lp-h6 { text-decoration: none; }

@@ -2407,3 +2407,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 修复：加行条改为 `left: calc(min(表格宽度, 100% - 18px) / 2); width: 64px; translateX(-50%)`；加列条改为 `top: 50%; height: 64px; translateY(-50%)`；条外区域点击穿透到表格 widget 的空白区，光标落到表格后的空行；
 - 高度表：`syncTableSize()` 里 `requestTableRemeasure()`（rAF 合流）主动 `view.requestMeasure()`，覆盖单元格换行/滚动条/字体加载导致的尺寸变化；
 - 回归：`gui-table-click-edge-check.mjs`（6 项）验证偏心点击不加行、居中 + 加行、右缘外侧不加列、无报错。
+
+---
+
+## 136. v1.1.11：表格换行不再断词
+
+**Obsidian 1.15.1 实测（CDP）**：`.table-cell-wrapper` / `td` 计算样式为 `word-break: normal`、`overflow-wrap: normal`、`white-space: break-spaces`；`table` 为 `width: auto; max-width: none; table-layout: auto`；`.cm-embed-block.cm-table-widget` 是 `overflow-x: auto`（表格超宽时控件自身横向滚动）。
+
+**本插件**：单元格改为 `word-break: normal; overflow-wrap: normal`（只在空格换行，绝不切断单词）；表格 `max-width: none`（按内容撑开）；`.gh-md-cm6-table-scroll` 保持 `overflow-x: auto` 并加细滚动条样式。
+
+验证脚本用 Range.getClientRects 检查每个单词是否跨行：`gui-table-wrap-check.mjs` 断言无单词跨行，且 760px 窄面板下 `configuration`/`checkpointing`/`dim_batch=2` 都完整显示。

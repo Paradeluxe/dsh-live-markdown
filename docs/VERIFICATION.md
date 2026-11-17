@@ -201,6 +201,19 @@ Reproduced: clicking just below a table in the old build hit the full-width add-
 - a click on the centred plus below the table still adds a row;
 - a click just right of the table, away from the centred plus, adds no column; zero page errors.
 
+## Table word wrapping (1.1.11)
+
+Obsidian 1.15.1 was measured first: cells use `word-break: normal; overflow-wrap: normal; white-space: break-spaces`, the table uses `width: auto; max-width: none`, and the table widget scrolls horizontally with `overflow-x: auto`.
+
+`gui-table-wrap-check.mjs` (5 assertions, part of the GUI suite):
+
+- no word in any cell is split across two lines (checked with Range.getClientRects for each word);
+- computed `word-break` is `normal` and `overflow-wrap` is `normal`;
+- the table either fits the container or becomes horizontally scrollable;
+- zero page errors.
+
+At a 760px viewport the same table renders "configuration", "checkpointing", "dim_batch=2", "wikitext_n1000_L128.jsonl" intact and wraps only at spaces (hyphenated tokens break after the hyphen, standard typography).
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
