@@ -2476,3 +2476,13 @@ Obsidian（CDP 实测）的表格选区模型：
 - **整格复制/剪切**：`onWindowKeyDown` 在「无矩形选区 + 焦点在 td/th + 没有原生文本选区」时拦截 `Ctrl+C`/`Ctrl+X`：`writePlainText(单元格文本)`，剪切时再走 `applyEdit` 把该格清空（Obsidian 行为）。
 - **拖出表格的钳制**：`cellAtPoint(clientX, clientY)` 按行/列矩形把指针钳制到最近单元格；`mousemove` 在指针不在单元格上时用它继续扩展选区，与 Obsidian 的越界拖拽一致（向下→最后一行、向上→表头、向右→最后一列）。
 - **数字排序**：`localeCompare(..., { numeric: true })`，1 < 2 < 10。
+
+---
+
+## 142. v1.1.17：选区菜单、对齐复制、表格粘贴
+
+- **对齐复制**：`selectionAlignments()` 取选区各列的 `this.alignments`；`serializeMarkdownTable(matrix, alignments)` 用 `padAligned()`（左：padEnd；居中：左 `floor(剩余/2)`；右：padStart），分隔行用 `formatSeparatorCell()` 生成 `---` / `:---:` / `---:`；HTML 序列化同步写 `style="text-align: …"`。实测 Obsidian：宽度 8 时居中列 `    C     `、分隔行 `:------:`。
+- **选区菜单**：`contextmenu` 时若 `selection !== null` 走 `showSelectionMenu()`，否则走原来的 `showMenu()`（行/列/排序）。菜单项与 Obsidian 一致：剪切（`cutSelection`）、复制（`copySelection('markdown')`）、粘贴（`pasteIntoSelection`）、`文本格式 ▸` 8 项、左/中/右对齐（改写分隔行）、清空选中的单元格、删除选中的单元格（复用 `deleteSelection` 语义）。
+- **右键不清选区**：`mousedown` 在 `event.button === 2` 时提前返回，让 `contextmenu` 能看到选区。
+- **点菜单不清选区**：`document` 的 mousedown 清理逻辑跳过 `.gh-md-cm6-table-menu` 内部，否则菜单动作拿不到选区。
+- **粘贴矩阵**：`parseClipboardTableHtml()` 用 `DOMParser` 解析剪贴板 HTML 的 `<table>`；`writeMatrixAt(startRow, startCol, table)` 从目标格开始覆盖、列不够补列、行不够补行；单元格上的 `paste` 监听只在剪贴板含 HTML 表格时接管，纯文本仍走浏览器默认。

@@ -973,6 +973,48 @@ class TableWidget extends WidgetType {
       return lines.join('\n')
     }
 
+    // 剪贴板里的 HTML 表格 → 字符串矩阵（Obsidian 复制时会同时写 text/html，粘贴时按表格解析）。
+    const parseClipboardTableHtml = (html) => {
+      if (typeof html !== 'string' || !/<table[\s>]/iu.test(html)) return null
+      try {
+        const parsed = new DOMParser().parseFromString(html, 'text/html')
+        const table = parsed.querySelector('table')
+        if (table === null) return null
+        const rows = Array.from(table.querySelectorAll('tr')).map((row) => Array.from(row.querySelectorAll('th,td')).map((cell) => (cell.textContent ?? '').trim()))
+        const usable = rows.filter((row) => row.length > 0)
+        if (usable.length === 0) return null
+        const width = usable.reduce((max, row) => Math.max(max, row.length), 0)
+        if (width === 0) return null
+        return { rows: usable, width }
+      } catch {
+        return null
+      }
+    }
+
+    // 把矩阵写入表格：从 startRow/startCol 开始覆盖单元格，行不够就补行（Obsidian 的粘贴行为）。
+    const writeMatrixAt = (startRow, startCol, table) => {
+      if (table === null || table.rows.length === 0) return false
+      const width = table.width
+      applyEdit((rows, separator) => {
+        const columnCount = Math.max(width + startCol, (rows[0] ?? []).length)
+        for (const row of rows) {
+          while (row.length < columnCount) row.push('')
+        }
+        while (separator.length < columnCount) separator.push('---')
+        let targetRow = startRow
+        for (const sourceRow of table.rows) {
+          while (targetRow >= rows.length) rows.push(new Array(columnCount).fill(''))
+          for (let offset = 0; offset < width; offset += 1) {
+            const value = sourceRow[offset]
+            rows[targetRow][startCol + offset] = value === undefined ? '' : value
+          }
+          targetRow += 1
+        }
+        return true
+      })
+      return true
+    }
+
     // 选区矩阵：统一成「行数组 × 列数组」的字符串矩阵，方便复制与序列化。
     const selectionMatrix = () => {
       const range = selectionRange()
@@ -998,11 +1040,32 @@ class TableWidget extends WidgetType {
       return matrix
     }
 
-    // Obsidian 的表格复制格式：首行当表头 + 一行分隔符，每列按「最宽内容（至少 3）」右补空格对齐。
-    const serializeMarkdownTable = (matrix) => {
+    // 单元格按列对齐补空格：左对齐补右、居中两侧均分、右对齐补左。
+    const padAligned = (value, width, alignment) => {
+      const raw = String(value)
+      if (raw.length >= width) return raw
+      const total = width - raw.length
+      if (alignment === 'center') {
+        const left = Math.floor(total / 2)
+        return ' '.repeat(left) + raw + ' '.repeat(total - left)
+      }
+      if (alignment === 'right') return ' '.repeat(total) + raw
+      return raw + ' '.repeat(total)
+    }
+
+    // 分隔行的对齐标记：--- / :---: / ---:
+    const formatSeparatorCell = (width, alignment) => {
+      if (alignment === 'center') return ':' + '-'.repeat(Math.max(1, width - 2)) + ':'
+      if (alignment === 'right') return '-'.repeat(Math.max(1, width - 1)) + ':'
+      return '-'.repeat(width)
+    }
+
+    // Obsidian 的表格复制格式：首行当表头 + 一行分隔符，每列按「最宽内容（至少 3）」对齐补空格。
+    const serializeMarkdownTable = (matrix, alignments) => {
       if (matrix.length === 0) return ''
       const columnCount = matrix.reduce((max, row) => Math.max(max, row.length), 0)
       if (columnCount === 0) return ''
+      const columnAlignments = Array.isArray(alignments) ? alignments : []
       const widths = []
       for (let col = 0; col < columnCount; col += 1) {
         let width = 3
@@ -1012,9 +1075,13 @@ class TableWidget extends WidgetType {
         }
         widths.push(width)
       }
-      const formatRow = (cells) => '| ' + widths.map((width, col) => String(cells[col] === undefined ? '' : cells[col]).padEnd(width)).join(' | ') + ' |'
+      const alignmentAt = (col) => {
+        const value = columnAlignments[col]
+        return value === 'center' || value === 'right' ? value : 'left'
+      }
+      const formatRow = (cells) => '| ' + widths.map((width, col) => padAligned(cells[col] === undefined ? '' : cells[col], width, alignmentAt(col))).join(' | ') + ' |'
       const lines = [formatRow(matrix[0])]
-      lines.push('| ' + widths.map((width) => '-'.repeat(width)).join(' | ') + ' |')
+      lines.push('| ' + widths.map((width, col) => formatSeparatorCell(width, alignmentAt(col))).join(' | ') + ' |')
       for (const row of matrix.slice(1)) lines.push(formatRow(row))
       return lines.join('\n')
     }
@@ -1025,17 +1092,40 @@ class TableWidget extends WidgetType {
       .replace(/>/gu, '&gt;')
 
     // 与 text/plain 配套的 HTML 表格（Obsidian 剪贴板里两种格式都有）。
-    const serializeHtmlTable = (matrix) => {
+    const serializeHtmlTable = (matrix, alignments) => {
       if (matrix.length === 0) return ''
-      const head = '<tr>' + (matrix[0] ?? []).map((cell) => '<th>' + escapeHtml(cell) + '</th>').join('') + '</tr>'
+      const columnAlignments = Array.isArray(alignments) ? alignments : []
+      const styleAt = (col) => {
+        const value = columnAlignments[col]
+        return value === 'center' || value === 'right' ? ' style="text-align: ' + value + '"' : ''
+      }
+      const head = '<tr>' + (matrix[0] ?? []).map((cell, col) => '<th' + styleAt(col) + '>' + escapeHtml(cell) + '</th>').join('') + '</tr>'
       const body = matrix.slice(1)
-        .map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell) + '</td>').join('') + '</tr>')
+        .map((row) => '<tr>' + row.map((cell, col) => '<td' + styleAt(col) + '>' + escapeHtml(cell) + '</td>').join('') + '</tr>')
         .join('')
       return '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>'
     }
 
-    const selectionToMarkdown = () => serializeMarkdownTable(selectionMatrix())
-    const selectionToHtml = () => serializeHtmlTable(selectionMatrix())
+    // 选区各列的对齐方式（用于复制时分隔行的 :---: / ---: 与单元格补空格方向）。
+    const selectionAlignments = () => {
+      const range = selectionRange()
+      if (range === null) return []
+      const alignments = []
+      if (range.kind === 'cell') {
+        for (let col = range.colStart; col <= range.colEnd; col += 1) alignments.push(this.alignments[col] ?? 'left')
+        return alignments
+      }
+      if (range.kind === 'row') {
+        const width = this.rows.reduce((max, row) => Math.max(max, row.length), 0)
+        for (let col = 0; col < width; col += 1) alignments.push(this.alignments[col] ?? 'left')
+        return alignments
+      }
+      for (let col = range.start; col <= range.end; col += 1) alignments.push(this.alignments[col] ?? 'left')
+      return alignments
+    }
+
+    const selectionToMarkdown = () => serializeMarkdownTable(selectionMatrix(), selectionAlignments())
+    const selectionToHtml = () => serializeHtmlTable(selectionMatrix(), selectionAlignments())
 
     const writePlainText = (value) => {
       const fallback = () => {
@@ -1190,7 +1280,13 @@ class TableWidget extends WidgetType {
       if (target.closest('.gh-md-cm6-table-row-handle') !== null) return
       if (target.closest('.gh-md-cm6-table-col-handle') !== null) return
       const cell = target.closest('th,td')
-      if (cell === null || event.button !== 0) {
+      if (cell === null) {
+        clearSelection()
+        return
+      }
+      // 右键按下时保留选区，contextmenu 才能弹出「选区菜单」（Obsidian 行为）。
+      if (event.button === 2) return
+      if (event.button !== 0) {
         clearSelection()
         return
       }
@@ -1363,6 +1459,8 @@ class TableWidget extends WidgetType {
       const target = event.target
       if (target === null || typeof target.closest !== 'function') return
       if (wrapper.contains(target)) return
+      // 点在自己弹出的菜单/子菜单里时不要清空选区，否则「复制」「删除选中的单元格」等菜单项拿不到选区。
+      if (target.closest('.gh-md-cm6-table-menu') !== null) return
       clearSelection()
     }
     document.addEventListener('mousedown', onDocumentMouseDown, true)
@@ -1509,6 +1607,21 @@ class TableWidget extends WidgetType {
       if (raw === undefined) return
       renderCell(cellNode, raw)
     })
+    // Ctrl+V：剪贴板里是表格（HTML）时按矩阵粘贴到当前单元格，与 Obsidian 一致；
+    // 纯文本仍走浏览器默认（写入当前单元格）。
+    wrapper.addEventListener('paste', (event) => {
+      const target = event.target
+      if (target === null || typeof target.closest !== 'function') return
+      const cellNode = target.closest('th,td')
+      if (cellNode === null) return
+      const data = event.clipboardData
+      if (data === null || data === undefined) return
+      const table = parseClipboardTableHtml(data.getData('text/html'))
+      if (table === null) return
+      event.preventDefault()
+      event.stopPropagation()
+      writeMatrixAt(Number(cellNode.dataset.row), Number(cellNode.dataset.cell), table)
+    })
     wrapper.addEventListener('input', (event) => {
       const target = event.target
       if (target === null || typeof target.closest !== 'function') return
@@ -1536,6 +1649,202 @@ class TableWidget extends WidgetType {
         }
       }
     })
+    // 选区各列索引（行/列选择会展开到整行/整列），用于批量格式化与对齐。
+    const selectionColumnIndexes = (range) => {
+      if (range === null) return []
+      if (range.kind === 'cell') {
+        const columns = []
+        for (let col = range.colStart; col <= range.colEnd; col += 1) columns.push(col)
+        return columns
+      }
+      if (range.kind === 'col') {
+        const columns = []
+        for (let col = range.start; col <= range.end; col += 1) columns.push(col)
+        return columns
+      }
+      const width = this.rows.reduce((max, row) => Math.max(max, row.length), 0)
+      const columns = []
+      for (let col = 0; col < width; col += 1) columns.push(col)
+      return columns
+    }
+    const selectionRowIndexes = (range) => {
+      if (range === null) return []
+      if (range.kind === 'cell') {
+        const rows = []
+        for (let row = range.rowStart; row <= range.rowEnd; row += 1) rows.push(row)
+        return rows
+      }
+      if (range.kind === 'row') {
+        const rows = []
+        for (let row = range.start; row <= range.end; row += 1) rows.push(row)
+        return rows
+      }
+      const rows = []
+      for (let row = 0; row < this.rows.length; row += 1) rows.push(row)
+      return rows
+    }
+    const stripCellFormatting = (value) => String(value)
+      .replace(/^\*\*(.*)\*\*$/su, '$1')
+      .replace(/^\*(.*)\*$/su, '$1')
+      .replace(/^~~(.*)~~$/su, '$1')
+      .replace(/^==(.*)==$/su, '$1')
+      .replace(/^`(.*)`$/su, '$1')
+      .replace(/^\$(.*)\$$/su, '$1')
+      .replace(/^%%(.*)%%$/su, '$1')
+    // 文本格式：给选区内每个单元格加/去包装（加粗/倾斜/删除线/高亮/代码/数学/注释/清除格式）
+    const applySelectionFormat = (left, right) => {
+      const range = selectionRange()
+      if (range === null) return
+      const columnIndexes = selectionColumnIndexes(range)
+      const rowIndexes = selectionRowIndexes(range)
+      applyEdit((rows) => {
+        for (const rowIndex of rowIndexes) {
+          const row = rows[rowIndex]
+          if (row === undefined) continue
+          for (const colIndex of columnIndexes) {
+            const value = row[colIndex] === undefined ? '' : String(row[colIndex])
+            row[colIndex] = left === '' && right === '' ? stripCellFormatting(value) : left + value + right
+          }
+        }
+        return true
+      })
+    }
+    const applySelectionAlignment = (style) => {
+      const range = selectionRange()
+      if (range === null) return
+      const columnIndexes = selectionColumnIndexes(range)
+      applyEdit((rows, separator) => {
+        for (const colIndex of columnIndexes) separator[colIndex] = style
+        return true
+      })
+    }
+    const clearSelectionCells = () => {
+      const range = selectionRange()
+      if (range === null) return false
+      const columnIndexes = selectionColumnIndexes(range)
+      const rowIndexes = selectionRowIndexes(range)
+      let applied = false
+      applyEdit((rows) => {
+        for (const rowIndex of rowIndexes) {
+          const row = rows[rowIndex]
+          if (row === undefined) continue
+          for (const colIndex of columnIndexes) {
+            if (row[colIndex] !== undefined) row[colIndex] = ''
+          }
+        }
+        applied = true
+        return true
+      })
+      return applied
+    }
+    // 粘贴到选区：剪贴板有 HTML 表格时按矩阵写入，否则把纯文本写进左上角单元格。
+    const pasteIntoSelection = async () => {
+      const range = selectionRange()
+      if (range === null) return
+      const startRow = range.kind === 'cell' ? range.rowStart : range.kind === 'row' ? range.start : 0
+      const startCol = range.kind === 'cell' ? range.colStart : range.kind === 'row' ? 0 : range.start
+      try {
+        if (navigator.clipboard !== undefined && typeof navigator.clipboard.read === 'function') {
+          const items = await navigator.clipboard.read()
+          for (const item of items) {
+            if (item.types.includes('text/html')) {
+              const html = await (await item.getType('text/html')).text()
+              const table = parseClipboardTableHtml(html)
+              if (table !== null) {
+                writeMatrixAt(startRow, startCol, table)
+                return
+              }
+            }
+          }
+          const plain = await navigator.clipboard.readText()
+          if (plain !== '') {
+            applyEdit((rows) => {
+              while (startRow >= rows.length) rows.push(new Array((rows[0] ?? []).length).fill(''))
+              const row = rows[startRow]
+              if (row === undefined) return false
+              while (row.length <= startCol) row.push('')
+              row[startCol] = plain
+              return true
+            })
+          }
+        }
+      } catch {}
+    }
+    const showSelectionMenu = (clientX, clientY) => {
+      const menu = document.createElement('div')
+      menu.className = 'gh-md-cm6-table-menu'
+      menu.style.left = clientX + 'px'
+      menu.style.top = clientY + 'px'
+      const closeMenu = () => {
+        menu.remove()
+        document.removeEventListener('mousedown', onOutside, true)
+        document.removeEventListener('keydown', onKey, true)
+      }
+      const makeButton = (label, action) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = label
+        button.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          closeMenu()
+          action()
+        })
+        return button
+      }
+      const appendSubmenu = (label, items) => {
+        const group = document.createElement('div')
+        group.className = 'gh-md-cm6-table-menu-group'
+        const head = document.createElement('div')
+        head.className = 'gh-md-cm6-table-menu-label'
+        const headText = document.createElement('span')
+        headText.className = 'gh-md-cm6-table-menu-label-text'
+        headText.textContent = label
+        head.appendChild(headText)
+        const arrow = document.createElement('span')
+        arrow.className = 'gh-md-cm6-table-menu-arrow'
+        arrow.textContent = '›'
+        head.appendChild(arrow)
+        const submenu = document.createElement('div')
+        submenu.className = 'gh-md-cm6-table-submenu'
+        for (const [itemLabel, action] of items) submenu.appendChild(makeButton(itemLabel, action))
+        group.appendChild(head)
+        group.appendChild(submenu)
+        menu.appendChild(group)
+      }
+      menu.appendChild(makeButton('剪切', () => cutSelection()))
+      menu.appendChild(makeButton('复制', () => copySelection('markdown')))
+      menu.appendChild(makeButton('粘贴', () => { pasteIntoSelection() }))
+      appendSubmenu('文本格式', [
+        ['加粗', () => applySelectionFormat('**', '**')],
+        ['倾斜', () => applySelectionFormat('*', '*')],
+        ['删除线', () => applySelectionFormat('~~', '~~')],
+        ['高亮', () => applySelectionFormat('==', '==')],
+        ['代码', () => applySelectionFormat('`', '`')],
+        ['数学', () => applySelectionFormat('$', '$')],
+        ['注释', () => applySelectionFormat('%%', '%%')],
+        ['清除格式', () => applySelectionFormat('', '')],
+      ])
+      menu.appendChild(makeButton('左对齐', () => applySelectionAlignment('---')))
+      menu.appendChild(makeButton('居中对齐', () => applySelectionAlignment(':---:')))
+      menu.appendChild(makeButton('右对齐', () => applySelectionAlignment('---:')))
+      menu.appendChild(makeButton('清空选中的单元格', () => clearSelectionCells()))
+      menu.appendChild(makeButton('删除选中的单元格', () => deleteSelection()))
+      const onOutside = (event) => {
+        if (!menu.contains(event.target)) closeMenu()
+      }
+      const onKey = (event) => {
+        if (event.key === 'Escape') closeMenu()
+      }
+      document.addEventListener('mousedown', onOutside, true)
+      document.addEventListener('keydown', onKey, true)
+      document.body.appendChild(menu)
+      try {
+        const rect = menu.getBoundingClientRect()
+        if (rect.right > window.innerWidth - 8) menu.style.left = Math.max(8, window.innerWidth - rect.width - 8) + 'px'
+        if (rect.bottom > window.innerHeight - 8) menu.style.top = Math.max(8, window.innerHeight - rect.height - 8) + 'px'
+      } catch {}
+    }
     const showMenu = (clientX, clientY, rowIndex, cellIndex) => {
       const view = this.host.view
       if (view === null) return
@@ -1706,6 +2015,11 @@ class TableWidget extends WidgetType {
       if (target === null || typeof target.closest !== 'function') return
       const cellNode = target.closest('td,th')
       if (cellNode === null) return
+      // 有选区时（单元格矩形/整行/整列）显示 Obsidian 的选区菜单；否则显示行/列/排序菜单。
+      if (selection !== null) {
+        showSelectionMenu(event.clientX, event.clientY)
+        return
+      }
       showMenu(event.clientX, event.clientY, Number(cellNode.dataset.row), Number(cellNode.dataset.cell))
     })
     wrapper.addEventListener('keydown', (event) => {

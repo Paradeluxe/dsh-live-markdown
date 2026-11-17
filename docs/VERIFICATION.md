@@ -268,6 +268,15 @@ gui-table-obsidian-check.mjs is now 33 assertions; the new ones below were first
 - dragging below the table selects the remaining rows down to the last one, dragging above clamps to the header row (8 cells);
 - numeric sort ascending yields 1, 2, 10.
 
+## Alignment, selection menu and paste (1.1.17)
+
+gui-table-obsidian-check.mjs is now 45 assertions. New ones, each first measured in Obsidian:
+
+- copying an aligned table reproduces Obsidian byte for byte: `| L        |    C     |        R |` / `| -------- | :------: | -------: |` / rows padded left, centred and right respectively; the narrow 3-character variant matches too (`| --- | :-: | --: |`); copying a single aligned column keeps `:------:`.
+- right-clicking with a selection shows Obsidian's selection menu (`剪切, 复制, 粘贴, 文本格式, 左对齐, 居中对齐, 右对齐, 清空选中的单元格, 删除选中的单元格`) with the 文本格式 submenu (`加粗, 倾斜, 删除线, 高亮, 代码, 数学, 注释, 清除格式`); without a selection the row/column/sort menu is shown instead.
+- menu 复制 copies Markdown; 加粗 wraps cells in `**`; 清除格式 strips wrappers; 居中对齐 rewrites the separator to `:---:`; 清空选中的单元格 empties the cells; 删除选中的单元格 removes the selected row.
+- pasting a copied 2x2 into a cell fills cells from the caret and appends a row, matching Obsidian.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
