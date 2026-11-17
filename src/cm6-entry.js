@@ -145,6 +145,13 @@ const CSS = `
 .gh-md-cm6-table-menu { position: fixed; z-index: 10000; display: flex; flex-direction: column; min-width: 132px; padding: 4px; border: .5px solid var(--dsw-alias-border-l2, #d0d7de); border-radius: 8px; background: var(--dsw-alias-bg-layer-2, #ffffff); box-shadow: 0 8px 24px rgb(0 0 0 / 18%); }
 .gh-md-cm6-table-menu button { border: none; background: transparent; text-align: left; font-size: 12px; padding: 5px 10px; border-radius: 5px; color: var(--dsw-alias-label-primary, #1f2328); cursor: pointer; }
 .gh-md-cm6-table-menu button:hover { background: var(--dsw-alias-bg-layer-1, #f6f8fa); }
+.gh-md-cm6-table-menu-group { position: relative; }
+.gh-md-cm6-table-menu-label { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 12px; padding: 5px 10px; border-radius: 5px; color: var(--dsw-alias-label-primary, #1f2328); cursor: pointer; user-select: none; }
+.gh-md-cm6-table-menu-group:hover > .gh-md-cm6-table-menu-label { background: var(--dsw-alias-bg-layer-1, #f6f8fa); }
+.gh-md-cm6-table-menu-arrow { color: var(--dsw-alias-label-tertiary, #8c959f); font-size: 11px; line-height: 1; }
+.gh-md-cm6-table-submenu { display: none; position: absolute; left: calc(100% - 2px); top: -5px; min-width: 150px; padding: 4px; border: .5px solid var(--dsw-alias-border-l2, #d0d7de); border-radius: 8px; background: var(--dsw-alias-bg-layer-2, #ffffff); box-shadow: 0 8px 24px rgb(0 0 0 / 18%); flex-direction: column; }
+.gh-md-cm6-table-menu-group:hover > .gh-md-cm6-table-submenu { display: flex; }
+.gh-md-cm6-table-menu-separator { height: 1px; margin: 4px 6px; background: var(--dsw-alias-border-l1, #eaeef2); }
 /* 折叠箭头：圆角描边 chevron；展开 → 旋转 90° 指向下，折叠 → 指向右 */
 .gh-md-cm6-lp .gh-md-cm6-fold-chevron {
   display: inline-flex; align-items: center; justify-content: center;
@@ -694,6 +701,8 @@ class TableWidget extends WidgetType {
     const colHandles = []
     let cellDrag = null
     let skipCellClick = false
+    // 上次单击过的单元格：Shift+点击用它当锚点（Obsidian 也是这样扩展选区）。
+    let cellAnchor = null
     let dragState = null
     let skipNextClick = false
 
@@ -970,29 +979,75 @@ class TableWidget extends WidgetType {
       return lines.join('\n')
     }
 
-    const selectionToMarkdown = () => {
+    // 选区矩阵：统一成「行数组 × 列数组」的字符串矩阵，方便复制与序列化。
+    const selectionMatrix = () => {
       const range = selectionRange()
-      if (range === null) return ''
-      const lines = []
+      if (range === null) return []
       if (range.kind === 'cell') {
+        const matrix = []
         for (let rowIndex = range.rowStart; rowIndex <= range.rowEnd; rowIndex += 1) {
-          const values = cellValuesOf(this.rows[rowIndex], range.colStart, range.colEnd)
-          lines.push('| ' + values.join(' | ') + ' |')
+          matrix.push(cellValuesOf(this.rows[rowIndex], range.colStart, range.colEnd))
         }
-        return lines.join('\n')
+        return matrix
       }
-      for (let index = range.start; index <= range.end; index += 1) {
-        const row = this.rows[index]
-        if (row === undefined) continue
-        const values = cellValuesOf(row, range.kind === 'row' ? 0 : range.start, range.kind === 'row' ? row.length - 1 : range.end)
-        lines.push('| ' + values.join(' | ') + ' |')
+      if (range.kind === 'row') {
+        const matrix = []
+        for (let index = range.start; index <= range.end; index += 1) {
+          const row = this.rows[index]
+          if (row === undefined) continue
+          matrix.push(cellValuesOf(row, 0, Math.max(0, row.length - 1)))
+        }
+        return matrix
       }
+      const matrix = []
+      for (const row of this.rows) matrix.push(cellValuesOf(row, range.start, range.end))
+      return matrix
+    }
+
+    // Obsidian 的表格复制格式：首行当表头 + 一行分隔符，每列按「最宽内容（至少 3）」右补空格对齐。
+    const serializeMarkdownTable = (matrix) => {
+      if (matrix.length === 0) return ''
+      const columnCount = matrix.reduce((max, row) => Math.max(max, row.length), 0)
+      if (columnCount === 0) return ''
+      const widths = []
+      for (let col = 0; col < columnCount; col += 1) {
+        let width = 3
+        for (const row of matrix) {
+          const value = row[col] === undefined ? '' : String(row[col])
+          width = Math.max(width, value.length)
+        }
+        widths.push(width)
+      }
+      const formatRow = (cells) => '| ' + widths.map((width, col) => String(cells[col] === undefined ? '' : cells[col]).padEnd(width)).join(' | ') + ' |'
+      const lines = [formatRow(matrix[0])]
+      lines.push('| ' + widths.map((width) => '-'.repeat(width)).join(' | ') + ' |')
+      for (const row of matrix.slice(1)) lines.push(formatRow(row))
       return lines.join('\n')
     }
 
-    const copySelection = (asMarkdown) => {
-      const value = asMarkdown === true ? selectionToMarkdown() : selectionToText()
+    const escapeHtml = (value) => String(value)
+      .replace(/&/gu, '&amp;')
+      .replace(/</gu, '&lt;')
+      .replace(/>/gu, '&gt;')
+
+    // 与 text/plain 配套的 HTML 表格（Obsidian 剪贴板里两种格式都有）。
+    const serializeHtmlTable = (matrix) => {
+      if (matrix.length === 0) return ''
+      const head = '<tr>' + (matrix[0] ?? []).map((cell) => '<th>' + escapeHtml(cell) + '</th>').join('') + '</tr>'
+      const body = matrix.slice(1)
+        .map((row) => '<tr>' + row.map((cell) => '<td>' + escapeHtml(cell) + '</td>').join('') + '</tr>')
+        .join('')
+      return '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>'
+    }
+
+    const selectionToMarkdown = () => serializeMarkdownTable(selectionMatrix())
+    const selectionToHtml = () => serializeHtmlTable(selectionMatrix())
+
+    const copySelection = (mode) => {
+      const asTsv = mode === 'tsv'
+      const value = asTsv ? selectionToText() : selectionToMarkdown()
       if (value === '') return false
+      const html = asTsv ? '' : selectionToHtml()
       const fallback = () => {
         try {
           const area = document.createElement('textarea')
@@ -1008,6 +1063,20 @@ class TableWidget extends WidgetType {
           return false
         }
       }
+      // 优先写入 text/plain + text/html（和 Obsidian 一致，粘到浏览器/Word 里就是表格）。
+      try {
+        if (html !== '' && typeof window.ClipboardItem === 'function'
+          && navigator.clipboard !== undefined && typeof navigator.clipboard.write === 'function') {
+          const item = new window.ClipboardItem({
+            'text/plain': new Blob([value], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' }),
+          })
+          navigator.clipboard.write([item]).catch(() => {
+            try { navigator.clipboard.writeText(value).catch(() => { fallback() }) } catch { fallback() }
+          })
+          return true
+        }
+      } catch {}
       try {
         if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') {
           navigator.clipboard.writeText(value).catch(() => { fallback() })
@@ -1015,6 +1084,14 @@ class TableWidget extends WidgetType {
         }
       } catch {}
       return fallback()
+    }
+
+    // Ctrl+X：和 Obsidian 一样先复制 Markdown 表格，再按选区语义删除。
+    const cutSelection = () => {
+      if (selectionRange() === null) return false
+      const copied = copySelection('markdown')
+      const removed = deleteSelection()
+      return copied || removed
     }
 
     const deleteSelection = () => {
@@ -1098,6 +1175,30 @@ class TableWidget extends WidgetType {
         clearSelection()
         return
       }
+      // Shift+点击：以已有选区（或上次单击过的单元格）为锚点扩展矩形，和 Obsidian 一致。
+      if (event.shiftKey === true) {
+        const shiftRow = Number(cell.dataset.row)
+        const shiftCol = Number(cell.dataset.cell)
+        if (selection === null && cellAnchor !== null) {
+          applyCellSelection(cellAnchor.row, cellAnchor.col, shiftRow, shiftCol)
+          skipCellClick = true
+          event.preventDefault()
+          return
+        }
+        if (selection !== null) {
+          if (selection.kind === 'cell') {
+            applyCellSelection(selection.anchor.row, selection.anchor.col, shiftRow, shiftCol)
+          } else if (selection.kind === 'row') {
+            applySelection('row', shiftRow, true)
+          } else {
+            applySelection('col', shiftCol, true)
+          }
+          skipCellClick = true
+          event.preventDefault()
+          return
+        }
+      }
+      cellAnchor = { row: Number(cell.dataset.row), col: Number(cell.dataset.cell) }
       cellDrag = { row: Number(cell.dataset.row), col: Number(cell.dataset.cell), startX: event.clientX, startY: event.clientY, active: false }
     })
     wrapper.addEventListener('mousemove', (event) => {
@@ -1156,10 +1257,16 @@ class TableWidget extends WidgetType {
         deleteSelection()
         return
       }
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'x' || event.key === 'X')) {
+        event.preventDefault()
+        event.stopPropagation()
+        cutSelection()
+        return
+      }
       if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'C')) {
         event.preventDefault()
         event.stopPropagation()
-        copySelection(event.shiftKey === true)
+        copySelection(event.shiftKey === true ? 'tsv' : 'markdown')
         return
       }
       if (event.key === 'Escape') {
@@ -1358,38 +1465,121 @@ class TableWidget extends WidgetType {
       const separatorCells = block.separatorIndex >= 0 ? parseCells(block.lines[block.separatorIndex].text) : new Array(cols).fill('---')
       while (separatorCells.length < cols) separatorCells.push('---')
       const apply = (mutate) => applyEdit(mutate)
-      const items = [
-        ['在上方插入行', () => apply((rows) => { rows.splice(rowIndex, 0, new Array(cols).fill('')) })],
-        ['在下方插入行', () => apply((rows) => { rows.splice(rowIndex + 1, 0, new Array(cols).fill('')) })],
-        ['删除本行', () => apply((rows) => { if (rows.length <= 1) return false; rows.splice(rowIndex, 1) })],
-        ['在左侧插入列', () => apply((rows, sep) => { for (const row of rows) row.splice(cellIndex, 0, ''); sep.splice(cellIndex, 0, '---') })],
-        ['在右侧插入列', () => apply((rows, sep) => { for (const row of rows) row.splice(cellIndex + 1, 0, ''); sep.splice(cellIndex + 1, 0, '---') })],
-        ['删除本列', () => apply((rows, sep) => { if (cols <= 1) return false; for (const row of rows) row.splice(cellIndex, 1); sep.splice(cellIndex, 1) })],
+      // 移动行/列、复制、排序都走 applyEdit，和拖拽排序共用同一套提交路径。
+      const moveRow = (index, delta) => apply((rows) => {
+        const target = index + delta
+        if (index <= 0 || target <= 0 || target >= rows.length) return false
+        const moved = rows.splice(index, 1)[0]
+        rows.splice(target, 0, moved)
+        return true
+      })
+      const moveColumn = (index, delta) => apply((rows, sep) => {
+        const target = index + delta
+        if (target < 0 || target >= cols) return false
+        for (const row of rows) {
+          const moved = row.splice(index, 1)[0]
+          row.splice(target, 0, moved === undefined ? '' : moved)
+        }
+        const movedSeparator = sep.splice(index, 1)[0]
+        sep.splice(target, 0, movedSeparator === undefined ? '---' : movedSeparator)
+        return true
+      })
+      // 按列排序：保留表头行，其余行按该列文本升序/降序（数字优先按数值比较）。
+      const sortByColumn = (index, descending) => apply((rows) => {
+        if (rows.length <= 2) return false
+        const header = rows[0]
+        const body = rows.slice(1)
+        const sorted = body.slice().sort((left, right) => {
+          const a = left[index] === undefined ? '' : String(left[index])
+          const b = right[index] === undefined ? '' : String(right[index])
+          const result = a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+          return descending === true ? -result : result
+        })
+        rows.splice(0, rows.length, header, ...sorted)
+        return true
+      })
+      // 「复制行 / 复制列」复用选区复制通道，复制完把选区恢复原样。
+      const copyRowAt = (index) => {
+        const previous = selection
+        selection = { kind: 'row', anchor: index, focus: index }
+        copySelection('markdown')
+        selection = previous
+        paintSelection()
+      }
+      const copyColumnAt = (index) => {
+        const previous = selection
+        selection = { kind: 'col', anchor: index, focus: index }
+        copySelection('markdown')
+        selection = previous
+        paintSelection()
+      }
+      const rowItems = [
+        ['在上方新增行', () => apply((rows) => { rows.splice(Math.max(1, rowIndex), 0, new Array(cols).fill('')) })],
+        ['在下方新增行', () => apply((rows) => { rows.splice(Math.min(rows.length, rowIndex + 1), 0, new Array(cols).fill('')) })],
+        ['向上移动行', () => moveRow(rowIndex, -1)],
+        ['向下移动行', () => moveRow(rowIndex, 1)],
+        ['复制行', () => copyRowAt(rowIndex)],
+        ['删除行', () => apply((rows) => { if (rows.length <= 1) return false; rows.splice(Math.min(rowIndex, rows.length - 1), 1) })],
+      ]
+      const columnItems = [
+        ['在左侧新增列', () => apply((rows, sep) => { for (const row of rows) row.splice(cellIndex, 0, ''); sep.splice(cellIndex, 0, '---') })],
+        ['在右侧新增列', () => apply((rows, sep) => { for (const row of rows) row.splice(cellIndex + 1, 0, ''); sep.splice(cellIndex + 1, 0, '---') })],
+        ['向左移动列', () => moveColumn(cellIndex, -1)],
+        ['向右移动列', () => moveColumn(cellIndex, 1)],
         ['左对齐', () => apply((rows, sep) => { sep[cellIndex] = '---' })],
         ['居中对齐', () => apply((rows, sep) => { sep[cellIndex] = ':---:' })],
         ['右对齐', () => apply((rows, sep) => { sep[cellIndex] = '---:' })],
+        ['复制列', () => copyColumnAt(cellIndex)],
+        ['删除列', () => apply((rows, sep) => { if (cols <= 1) return false; for (const row of rows) row.splice(cellIndex, 1); sep.splice(cellIndex, 1) })],
       ]
       const menu = document.createElement('div')
       menu.className = 'gh-md-cm6-table-menu'
       menu.style.left = clientX + 'px'
       menu.style.top = clientY + 'px'
-      for (const [label, action] of items) {
+      const closeMenu = () => {
+        menu.remove()
+        document.removeEventListener('mousedown', onOutside, true)
+        document.removeEventListener('keydown', onKey, true)
+      }
+      const makeButton = (label, action) => {
         const button = document.createElement('button')
         button.type = 'button'
         button.textContent = label
         button.addEventListener('click', (event) => {
           event.preventDefault()
           event.stopPropagation()
-          action()
           closeMenu()
+          action()
         })
-        menu.appendChild(button)
+        return button
       }
-      const closeMenu = () => {
-        menu.remove()
-        document.removeEventListener('mousedown', onOutside, true)
-        document.removeEventListener('keydown', onKey, true)
+      const appendSubmenu = (label, items) => {
+        const group = document.createElement('div')
+        group.className = 'gh-md-cm6-table-menu-group'
+        const head = document.createElement('div')
+        head.className = 'gh-md-cm6-table-menu-label'
+        const headText = document.createElement('span')
+        headText.className = 'gh-md-cm6-table-menu-label-text'
+        headText.textContent = label
+        head.appendChild(headText)
+        const arrow = document.createElement('span')
+        arrow.className = 'gh-md-cm6-table-menu-arrow'
+        arrow.textContent = '›'
+        head.appendChild(arrow)
+        const submenu = document.createElement('div')
+        submenu.className = 'gh-md-cm6-table-submenu'
+        for (const [itemLabel, action] of items) submenu.appendChild(makeButton(itemLabel, action))
+        group.appendChild(head)
+        group.appendChild(submenu)
+        menu.appendChild(group)
       }
+      appendSubmenu('行', rowItems)
+      appendSubmenu('列', columnItems)
+      const separatorRow = document.createElement('div')
+      separatorRow.className = 'gh-md-cm6-table-menu-separator'
+      menu.appendChild(separatorRow)
+      menu.appendChild(makeButton('按列升序 (A-Z)', () => sortByColumn(cellIndex, false)))
+      menu.appendChild(makeButton('按列降序 (Z-A)', () => sortByColumn(cellIndex, true)))
       const onOutside = (event) => {
         if (!menu.contains(event.target)) closeMenu()
       }
@@ -1399,6 +1589,12 @@ class TableWidget extends WidgetType {
       document.addEventListener('mousedown', onOutside, true)
       document.addEventListener('keydown', onKey, true)
       document.body.appendChild(menu)
+      // 菜单/子菜单贴到窗口边缘时回退到可视区域内
+      try {
+        const rect = menu.getBoundingClientRect()
+        if (rect.right > window.innerWidth - 8) menu.style.left = Math.max(8, window.innerWidth - rect.width - 8) + 'px'
+        if (rect.bottom > window.innerHeight - 8) menu.style.top = Math.max(8, window.innerHeight - rect.height - 8) + 'px'
+      } catch {}
     }
     wrapper.addEventListener('keydown', (event) => {
       if (event.key !== 'Tab') return

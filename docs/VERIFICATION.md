@@ -240,6 +240,23 @@ After 1.1.11 long unbroken tokens could not wrap. The renderer now inserts <wbr>
 - the first column keeps a readable width (65px), so CJK headers are not one character per line;
 - zero page errors.
 
+## Obsidian table selection parity (1.1.15)
+
+`gui-table-obsidian-check.mjs` (18 assertions, part of the GUI suite). Obsidian itself was measured over CDP first; the copy strings below are character-identical to what Obsidian produced for the same table.
+
+- row selection + Ctrl+C -> `| 甲   | 1   | 第一行 |` + `| --- | --- | --- |`;
+- 2x2 rectangle + Ctrl+C -> `| 甲   | 1   |` / `| --- | --- |` / `| 乙   | 2   |`;
+- whole column (via the column grip) + Ctrl+C -> `| 名称  |` / `| --- |` / three data rows;
+- Ctrl+Shift+C still yields `甲\t1\t第一行`;
+- clipboard carries both text/plain and text/html;
+- Shift+Click on the last clicked cell selects a 2x3 rectangle (6 cells);
+- context menu exposes 行/列 groups with Obsidian's exact submenu labels plus the two sort entries;
+- sort descending -> 丙/乙/甲, ascending -> 甲/乙/丙, header untouched;
+- move row up -> 乙/甲/丙; menu copy row -> `| 乙   | 2   | 第二行 |` + separator;
+- Ctrl+X -> same Markdown and the row disappears (乙/丙 remain);
+- Delete on a 1x2 rectangle clears those two cells and keeps the row;
+- zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

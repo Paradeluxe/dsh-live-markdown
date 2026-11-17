@@ -2445,3 +2445,23 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - CSS：单元格 `word-break: normal; overflow-wrap: break-word;`，`min-width: 3em`（防止 CJK 列被压成一字一行）；表格 `max-width: 100%` 重新适配面板；
 - 编辑兼容：`focusin` 时 `textContent = raw` 会清掉 wbr，失焦后 `renderCell` 重新插入；输入/读取仍用 `textContent`，不影响文档文本；
 - 回归：`gui-table-wrap-check.mjs`（7 项）验证无普通单词跨行、URL 多行、表格适配、首列可读宽度。
+
+---
+
+## 140. v1.1.15：表格选中/复制对齐 Obsidian
+
+Obsidian（CDP 实测）的表格选区模型：
+
+- 单元格上挂 `is-selected` / `start` / `end` / `top` / `bottom` / `mod-dragging` 类，行/列手柄上有 `mod-active-row-handle` / `mod-active-col-handle`；
+- 复制格式 = 首行当表头 + `| --- |` 分隔行 + 其余行；**列宽 = max(3, 该列最宽内容)**，单元格右补空格；分隔行破折号数等于列宽；
+- 剪贴板同时写 `text/plain`（Markdown）与 `text/html`（`<table>`）；
+- 整行选区 `Ctrl+X`/`Delete` 删行，整列选区删列，局部矩形只清空单元格；
+- 右键菜单为 `行 ▸`、`列 ▸` 两个子菜单，行子菜单 6 项、列子菜单 9 项（含对齐），另有 `按列升序 (A-Z)` / `按列降序 (Z-A)`。
+
+实现要点：
+
+- `serializeMarkdownTable(matrix)`：列宽 `max(3, maxLen)`，行格式 `| ` + `padEnd(宽)` + ` |`，分隔行 `| ` + `-`×宽 + ` |`；`serializeHtmlTable(matrix)` 生成配套 HTML；
+- `copySelection(mode)`：`mode === 'tsv'` 走 TSV，否则 Markdown + HTML，用 `ClipboardItem` 同时写两种 MIME；
+- `cutSelection()`：复制后复用 `deleteSelection()`，删除语义与 Delete 完全一致；
+- `cellAnchor`：记录最后一次单击的单元格，`Shift+点击` 用它当锚点（Obsidian 在 `Esc` 之后仍保留锚点），选区存在时则直接扩展；
+- 菜单：`行`/`列` 用 `:hover` 展开的 `.gh-md-cm6-table-submenu`；移动行/列、排序全部走 `applyEdit`，与拖拽排序共用同一条提交路径；排序保留 `rows[0]` 表头，`localeCompare(numeric: true)` 让「2」排在「10」前面。
