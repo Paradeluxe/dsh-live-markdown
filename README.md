@@ -503,3 +503,19 @@ MIT — see [LICENSE](LICENSE).
 ```
 
 `gui-table-obsidian-check.mjs` 扩到 **45 项**（全部通过）。
+
+## 1.1.18（v1.1.18）：键盘扩展表格选区
+
+按 Obsidian 实测补齐键盘选区：
+
+| 按键 | Obsidian 实测 | 现在 |
+| --- | --- | --- |
+| 单元格内 `Shift+↓` / `Shift+↑` | 跨格扩展成矩形选区 | ✅ |
+| 有选区时 `Shift+方向键` | 以锚点继续扩展矩形 | ✅ |
+| 有选区时普通方向键 | 清空选区并移动活动单元格 | ✅ |
+| 文本末尾 `Shift+→` / 文本开头 `Shift+←` | 越界扩展到相邻单元格 | ✅ |
+| 文本中间 `Shift+→` | 仍是原生文本选区，不扩展单元格 | ✅ 不拦截 |
+
+实现：`cellNodeAt` / `clampCell` / `focusCellAt` / `caretOffsetInCell` 四个小工具；窗口级 keydown 处理「有选区时的方向键」，单元格 keydown 处理「单元格内的 Shift+方向键」（用光标偏移判断是否在文本首尾，避免抢走普通文本选区）。
+
+`gui-table-obsidian-check.mjs` 扩到 **51 项**（全部通过）。

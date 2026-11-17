@@ -2486,3 +2486,17 @@ Obsidian（CDP 实测）的表格选区模型：
 - **右键不清选区**：`mousedown` 在 `event.button === 2` 时提前返回，让 `contextmenu` 能看到选区。
 - **点菜单不清选区**：`document` 的 mousedown 清理逻辑跳过 `.gh-md-cm6-table-menu` 内部，否则菜单动作拿不到选区。
 - **粘贴矩阵**：`parseClipboardTableHtml()` 用 `DOMParser` 解析剪贴板 HTML 的 `<table>`；`writeMatrixAt(startRow, startCol, table)` 从目标格开始覆盖、列不够补列、行不够补行；单元格上的 `paste` 监听只在剪贴板含 HTML 表格时接管，纯文本仍走浏览器默认。
+
+---
+
+## 143. v1.1.18：键盘扩展选区
+
+Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩展；已有矩形选区时 `Shift+方向键` 以锚点扩展、普通方向键清空选区并移动活动单元格；`Shift+→` 在文本末尾才越界到下一格，文本中间只是普通文本选区。
+
+实现：
+
+- `cellNodeAt(row,col)` / `clampCell()` / `cellBounds()`：行列取单元格与边界钳制；
+- `focusCellAt(row,col)`：聚焦并把光标放到单元格末尾，同时更新 `cellAnchor`（之后 Shift+方向键以它当锚点）；
+- `caretOffsetInCell(cell)`：用 Range 计算光标字符偏移，只有 `offset >= 文本长度`（→）或 `offset === 0`（←）时才越界扩展，否则不阻止默认行为，保留原生文本选区；
+- 窗口级 `onWindowKeyDown` 处理「有选区」的方向键；单元格 `keydown` 处理「焦点在单元格内」的 Shift+方向键；
+- 所有方向键路径都 `preventDefault + stopPropagation`（只在真正扩展/移动时），不影响表格外的输入。

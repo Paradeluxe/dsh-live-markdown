@@ -763,6 +763,54 @@ class TableWidget extends WidgetType {
       paintSelection()
     }
 
+    const cellNodeAt = (rowIndex, colIndex) => wrapper.querySelector('td[data-row="' + rowIndex + '"][data-cell="' + colIndex + '"], th[data-row="' + rowIndex + '"][data-cell="' + colIndex + '"]')
+    const cellBounds = () => {
+      const rowCount = Math.max(1, wrapper.querySelectorAll('tr').length)
+      const columnCount = Math.max(1, Array.from(wrapper.querySelectorAll('tr')).reduce((max, row) => Math.max(max, row.children.length), 0))
+      return { rowCount, columnCount }
+    }
+    const clampCell = (rowIndex, colIndex) => {
+      const bounds = cellBounds()
+      return {
+        row: Math.max(0, Math.min(bounds.rowCount - 1, rowIndex)),
+        col: Math.max(0, Math.min(bounds.columnCount - 1, colIndex)),
+      }
+    }
+    // 把焦点和光标放到指定单元格末尾（键盘导航用）。
+    const focusCellAt = (rowIndex, colIndex) => {
+      const node = cellNodeAt(rowIndex, colIndex)
+      if (node === null) return false
+      try { node.focus() } catch {}
+      try {
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        range.collapse(false)
+        const current = window.getSelection()
+        if (current !== null) {
+          current.removeAllRanges()
+          current.addRange(range)
+        }
+      } catch {}
+      cellAnchor = { row: rowIndex, col: colIndex }
+      return true
+    }
+    // 光标是否在单元格文本末尾（Shift+左右键越界时才扩展选区，和 Obsidian 一致）。
+    const caretOffsetInCell = (cellNode) => {
+      try {
+        const current = window.getSelection()
+        if (current === null || current.rangeCount === 0) return null
+        const range = current.getRangeAt(0)
+        if (!range.collapsed) return null
+        const probe = document.createRange()
+        probe.selectNodeContents(cellNode)
+        probe.setEnd(range.endContainer, range.endOffset)
+        return probe.toString().length
+      } catch {
+        return null
+      }
+    }
+    const ARROW_DELTAS = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }
+
     const startHandleDrag = (kind, index, handle, event) => {
       if (event.button !== 0) return
       dragState = { kind, index, startX: event.clientX, startY: event.clientY, moved: false, indicator: null, target: index }
@@ -1428,6 +1476,22 @@ class TableWidget extends WidgetType {
         }
       }
       if (selection === null) return
+      // 有矩形选区时：方向键移动活动单元格，Shift+方向键扩展选区（Obsidian 行为）。
+      if (selection.kind === 'cell' && ARROW_DELTAS[event.key] !== undefined) {
+        const delta = ARROW_DELTAS[event.key]
+        event.preventDefault()
+        event.stopPropagation()
+        if (event.shiftKey === true) {
+          const focus = selection.focus
+          const next = clampCell(focus.row + delta[0], focus.col + delta[1])
+          applyCellSelection(selection.anchor.row, selection.anchor.col, next.row, next.col)
+          return
+        }
+        const target = clampCell(selection.focus.row + delta[0], selection.focus.col + delta[1])
+        clearSelection()
+        focusCellAt(target.row, target.col)
+        return
+      }
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault()
         event.stopPropagation()
@@ -2027,6 +2091,37 @@ class TableWidget extends WidgetType {
       if (target === null || typeof target.closest !== 'function') return
       const cellNode = target.closest('td,th')
       if (cellNode === null) return
+      // 单元格内的方向键：Shift+上下跨格扩展；Shift+左右在文本首尾越界扩展（Obsidian 行为）。
+      if (event.shiftKey === true && ARROW_DELTAS[event.key] !== undefined) {
+        const rowIndex = Number(cellNode.dataset.row)
+        const colIndex = Number(cellNode.dataset.cell)
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          const delta = ARROW_DELTAS[event.key][0]
+          const next = clampCell(rowIndex + delta, colIndex)
+          if (next.row !== rowIndex) {
+            event.preventDefault()
+            event.stopPropagation()
+            const anchor = cellAnchor === null ? { row: rowIndex, col: colIndex } : cellAnchor
+            applyCellSelection(anchor.row, anchor.col, next.row, next.col)
+          }
+          return
+        }
+        const textLength = String(cellNode.textContent ?? '').length
+        const offset = caretOffsetInCell(cellNode)
+        if (offset === null) return
+        const leavingRight = event.key === 'ArrowRight' && offset >= textLength
+        const leavingLeft = event.key === 'ArrowLeft' && offset === 0
+        if (!leavingRight && !leavingLeft) return
+        const delta = ARROW_DELTAS[event.key][1]
+        const next = clampCell(rowIndex, colIndex + delta)
+        if (next.col !== colIndex) {
+          event.preventDefault()
+          event.stopPropagation()
+          const anchor = cellAnchor === null ? { row: rowIndex, col: colIndex } : cellAnchor
+          applyCellSelection(anchor.row, anchor.col, next.row, next.col)
+        }
+        return
+      }
       const allCells = Array.from(wrapper.querySelectorAll('td,th'))
       const index = allCells.indexOf(cellNode)
       if (event.key === 'Tab') {

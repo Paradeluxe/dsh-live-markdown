@@ -277,6 +277,17 @@ gui-table-obsidian-check.mjs is now 45 assertions. New ones, each first measured
 - menu 复制 copies Markdown; 加粗 wraps cells in `**`; 清除格式 strips wrappers; 居中对齐 rewrites the separator to `:---:`; 清空选中的单元格 empties the cells; 删除选中的单元格 removes the selected row.
 - pasting a copied 2x2 into a cell fills cells from the caret and appends a row, matching Obsidian.
 
+## Keyboard selection (1.1.18)
+
+gui-table-obsidian-check.mjs is now 51 assertions; six new ones cover the keyboard paths, each first measured in Obsidian:
+
+- Shift+ArrowDown inside a cell selects that cell and the one below (values 1 and 2);
+- a further Shift+ArrowDown keeps extending the same rectangle (3 cells);
+- a plain arrow clears the selection and moves the active cell (active = the cell below);
+- Shift+ArrowRight at the end of a cell selects the neighbour (1 and 第一行);
+- Shift+ArrowRight inside the text does not create a cell selection (normal text selection stays);
+- Shift+ArrowUp selects the row above.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
