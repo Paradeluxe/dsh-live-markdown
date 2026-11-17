@@ -2374,3 +2374,14 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 落点：行按 `tr` 中线、列按 `th` 中线计算插入下标（0..n）；行下标夹到 >= 1（表头固定）；松手后 `moveRowTo` / `moveColumnTo` 用同一套 `applyEdit` 改写文本；
 - 拖拽结束后用 `skipNextClick` 吞掉随后的 click，避免"拖完又触发选择"；
 - `Ctrl+Shift+C` 走 `selectionToMarkdown()`（`| a | b |`），`Ctrl+C` 仍走 `selectionToText()`（TSV）。
+
+---
+
+## 133. v1.1.8：跨格拖拽选择
+
+- 原因：每个单元格是独立 contenteditable（Chromium 下是独立 editing host），原生选区无法跨单元格，所以"拖一整行再删除"不可用；
+- 交互：mousedown 记录锚点单元格，mousemove 移动到其它单元格且位移 > 6px 时进入区域选择（is-cell-selecting + user-select: none，清空原生选区，focus 到 wrapper）；同一单元格内拖动不进入，保留原生文本选择；
+- 状态：selection = { kind: cell, anchor: { row, col }, focus: { row, col } }，paintSelection() 统一给单元格加 .gh-md-cm6-table-cell-selected；
+- 删除语义：选区覆盖所有列 → 删行；覆盖所有行 → 删列；否则清空矩形内单元格内容（applyEdit 里的 rows 是字符串数组，直接赋空字符串）；
+- 复制：selectionToText / selectionToMarkdown 支持 cell 矩形；
+- 生命周期：document 级 mouseup / selectstart 监听在 TableWidget.destroy(dom) 里移除（wrapper.__ghMdTableCleanup）；destroy 不得重置 tableSourceMode，否则会破坏"源码态 → 改文本 → 渲染态"的三段式编辑。

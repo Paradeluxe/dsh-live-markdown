@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.7'
+      const BUILD_STAMP = '1.1.8'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')

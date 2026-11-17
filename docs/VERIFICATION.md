@@ -164,6 +164,16 @@ A table that spans the full content width used to clip the add-column strip. The
 - dragging the third row handle above the first row shows a drop indicator and leaves rows as 甲, 丙, 乙 both in the DOM and in the document;
 - dragging the last column handle to the left end reorders the header to 备注, 名称, 数值 with cell data following (第一行 | 甲 | 1); zero page errors.
 
+## Cross-cell drag selection (1.1.8)
+
+`gui-table-cellselect-check.mjs` (9 assertions, part of the GUI suite):
+
+- dragging across two cells highlights exactly those two;
+- dragging across a whole row highlights all 3 cells and Backspace deletes the row (3 -> 2 body rows);
+- dragging down a whole column highlights header + 3 body cells and Backspace deletes the column (3 -> 2 columns);
+- dragging a 2x2 rectangle highlights 4 cells and Backspace clears their contents while the table keeps 3 rows and 3 columns;
+- Ctrl+C copies the range as TSV; zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

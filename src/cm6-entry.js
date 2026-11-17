@@ -61,6 +61,9 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
 .gh-md-cm6-lp .gh-md-cm6-table .gh-md-cm6-table-cell-selected { background: rgb(9 105 218 / 10%) !important; }
+.gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting { user-select: none; }
+.gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting th, .gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting td { user-select: none; }
+.gh-md-cm6-lp .gh-md-cm6-table:focus { outline: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-drop-indicator { position: absolute; background: var(--dsw-alias-state-info-primary, #0969da); border-radius: 2px; z-index: 3; pointer-events: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-dragging, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-dragging { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); cursor: grabbing; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle { cursor: grab; }
@@ -528,6 +531,12 @@ class TableWidget extends WidgetType {
     this.alignments = Array.isArray(alignments) ? alignments : []
   }
 
+  destroy(dom) {
+    try {
+      if (dom !== null && typeof dom.__ghMdTableCleanup === 'function') dom.__ghMdTableCleanup()
+    } catch {}
+  }
+
   eq() {
     // 表格 DOM 的刷新由 applyEdit 的"源码态→编辑→渲染态"三步保证；
     // 这里保持恒真，避免 CM6 在更新中途替换整块 widget（会破坏高度表）。
@@ -662,43 +671,145 @@ class TableWidget extends WidgetType {
     // ---- Obsidian 风格的行/列选择手柄：点一下选中整行/整列，再按 Backspace / Delete 删除 ----
     const gripVertical = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/><circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/><circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/></svg>'
     const gripHorizontal = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><circle cx="4" cy="6" r="1.1"/><circle cx="4" cy="10" r="1.1"/><circle cx="8" cy="6" r="1.1"/><circle cx="8" cy="10" r="1.1"/><circle cx="12" cy="6" r="1.1"/><circle cx="12" cy="10" r="1.1"/></svg>'
-    let selection = null // { kind: 'row' | 'col', anchor, focus }
+    // 选择状态：{ kind: 'row' | 'col', anchor, focus } 或 { kind: 'cell', anchor: { row, col }, focus: { row, col } }
+    let selection = null
     const rowHandles = []
     const colHandles = []
+    let cellDrag = null
+    let skipCellClick = false
+    let dragState = null
+    let skipNextClick = false
+
     const selectionRange = () => {
       if (selection === null) return null
+      if (selection.kind === 'cell') {
+        return {
+          kind: 'cell',
+          rowStart: Math.min(selection.anchor.row, selection.focus.row),
+          rowEnd: Math.max(selection.anchor.row, selection.focus.row),
+          colStart: Math.min(selection.anchor.col, selection.focus.col),
+          colEnd: Math.max(selection.anchor.col, selection.focus.col),
+        }
+      }
       return { kind: selection.kind, start: Math.min(selection.anchor, selection.focus), end: Math.max(selection.anchor, selection.focus) }
     }
-    const clearSelection = () => {
-      if (selection === null) return
-      selection = null
+
+    const paintSelection = () => {
       for (const cell of wrapper.querySelectorAll('th,td')) cell.classList.remove('gh-md-cm6-table-cell-selected')
       for (const handle of rowHandles) handle.classList.remove('is-selected')
       for (const handle of colHandles) handle.classList.remove('is-selected')
-      wrapper.dataset.mdSelection = ''
+      const range = selectionRange()
+      if (range === null) return
+      for (const cell of wrapper.querySelectorAll('th,td')) {
+        const row = Number(cell.dataset.row)
+        const col = Number(cell.dataset.cell)
+        if (range.kind === 'row' && row >= range.start && row <= range.end) cell.classList.add('gh-md-cm6-table-cell-selected')
+        if (range.kind === 'col' && col >= range.start && col <= range.end) cell.classList.add('gh-md-cm6-table-cell-selected')
+        if (range.kind === 'cell' && row >= range.rowStart && row <= range.rowEnd && col >= range.colStart && col <= range.colEnd) cell.classList.add('gh-md-cm6-table-cell-selected')
+      }
+      if (range.kind === 'row') {
+        for (const handle of rowHandles) {
+          const position = Number(handle.dataset.index)
+          if (position >= range.start && position <= range.end) handle.classList.add('is-selected')
+        }
+      }
+      if (range.kind === 'col') {
+        for (const handle of colHandles) {
+          const position = Number(handle.dataset.index)
+          if (position >= range.start && position <= range.end) handle.classList.add('is-selected')
+        }
+      }
     }
+
+    const clearSelection = () => {
+      if (selection === null) return
+      selection = null
+      wrapper.dataset.mdSelection = ''
+      paintSelection()
+    }
+
     const applySelection = (kind, index, extend) => {
       const previous = selectionRange()
       const keepAnchor = extend === true && previous !== null && previous.kind === kind
       const anchor = keepAnchor ? selection.anchor : index
-      for (const cell of wrapper.querySelectorAll('th,td')) cell.classList.remove('gh-md-cm6-table-cell-selected')
-      for (const handle of rowHandles) handle.classList.remove('is-selected')
-      for (const handle of colHandles) handle.classList.remove('is-selected')
       selection = { kind, anchor, focus: index }
       wrapper.dataset.mdSelection = kind
-      const low = Math.min(anchor, index)
-      const high = Math.max(anchor, index)
-      for (const cell of wrapper.querySelectorAll('th,td')) {
-        const position = kind === 'row' ? Number(cell.dataset.row) : Number(cell.dataset.cell)
-        if (position >= low && position <= high) cell.classList.add('gh-md-cm6-table-cell-selected')
-      }
-      for (const handle of (kind === 'row' ? rowHandles : colHandles)) {
-        const position = Number(handle.dataset.index)
-        if (position >= low && position <= high) handle.classList.add('is-selected')
-      }
+      paintSelection()
     }
-    let dragState = null
-    let skipNextClick = false
+
+    const applyCellSelection = (anchorRow, anchorCol, focusRow, focusCol) => {
+      selection = { kind: 'cell', anchor: { row: anchorRow, col: anchorCol }, focus: { row: focusRow, col: focusCol } }
+      wrapper.dataset.mdSelection = 'cell'
+      paintSelection()
+    }
+
+    const startHandleDrag = (kind, index, handle, event) => {
+      if (event.button !== 0) return
+      dragState = { kind, index, startX: event.clientX, startY: event.clientY, moved: false, indicator: null, target: index }
+      skipNextClick = false
+      try { handle.setPointerCapture(event.pointerId) } catch {}
+    }
+
+    const updateDrag = (event) => {
+      if (dragState === null) return
+      const distance = Math.abs(event.clientX - dragState.startX) + Math.abs(event.clientY - dragState.startY)
+      if (!dragState.moved && distance < 4) return
+      if (!dragState.moved) {
+        dragState.moved = true
+        const indicator = document.createElement('div')
+        indicator.className = 'gh-md-cm6-table-drop-indicator'
+        wrapper.appendChild(indicator)
+        dragState.indicator = indicator
+      }
+      try {
+        const wrapperRect = wrapper.getBoundingClientRect()
+        const nodes = dragState.kind === 'row'
+          ? Array.from(table.querySelectorAll('tr'))
+          : Array.from(table.querySelectorAll('thead tr:first-child th'))
+        let target = nodes.length
+        for (let position = 0; position < nodes.length; position += 1) {
+          const rect = nodes[position].getBoundingClientRect()
+          if (dragState.kind === 'row') {
+            if (event.clientY < rect.top + rect.height / 2) { target = position; break }
+          } else if (event.clientX < rect.left + rect.width / 2) {
+            target = position
+            break
+          }
+        }
+        dragState.target = target
+        if (dragState.indicator !== null) {
+          const rect = nodes[Math.min(target, nodes.length - 1)].getBoundingClientRect()
+          if (dragState.kind === 'row') {
+            const top = target >= nodes.length ? rect.bottom : rect.top
+            dragState.indicator.style.top = (top - wrapperRect.top) + 'px'
+            dragState.indicator.style.left = (rect.left - wrapperRect.left) + 'px'
+            dragState.indicator.style.width = rect.width + 'px'
+            dragState.indicator.style.height = '2px'
+          } else {
+            const left = target >= nodes.length ? rect.right : rect.left
+            dragState.indicator.style.left = (left - wrapperRect.left - 1) + 'px'
+            dragState.indicator.style.top = (rect.top - wrapperRect.top) + 'px'
+            dragState.indicator.style.width = '2px'
+            dragState.indicator.style.height = rect.height + 'px'
+          }
+        }
+      } catch {}
+    }
+
+    const endHandleDrag = (event, handle) => {
+      if (dragState === null) return
+      const state = dragState
+      dragState = null
+      try { handle.releasePointerCapture(event.pointerId) } catch {}
+      if (state.indicator !== null) state.indicator.remove()
+      for (const node of rowHandles) node.classList.remove('is-dragging')
+      for (const node of colHandles) node.classList.remove('is-dragging')
+      if (!state.moved) return
+      skipNextClick = true
+      if (state.kind === 'row') moveRowTo(state.index, state.target)
+      else moveColumnTo(state.index, state.target)
+    }
+
     const moveRowTo = (from, insertAt) => {
       if (from < 1) return false
       let target = insertAt
@@ -716,6 +827,7 @@ class TableWidget extends WidgetType {
       })
       return applied
     }
+
     const moveColumnTo = (from, insertAt) => {
       let target = insertAt
       if (from < target) target -= 1
@@ -734,74 +846,7 @@ class TableWidget extends WidgetType {
       })
       return applied
     }
-    const startHandleDrag = (kind, index, handle, event) => {
-      if (event.button !== 0) return
-      dragState = { kind, index, startX: event.clientX, startY: event.clientY, moved: false, indicator: null, target: index }
-      skipNextClick = false
-      try { handle.setPointerCapture(event.pointerId) } catch {}
-    }
-    const updateDrag = (event) => {
-      if (dragState === null) return
-      const distance = Math.abs(event.clientX - dragState.startX) + Math.abs(event.clientY - dragState.startY)
-      if (!dragState.moved && distance < 4) return
-      if (!dragState.moved) {
-        dragState.moved = true
-        const indicator = document.createElement('div')
-        indicator.className = 'gh-md-cm6-table-drop-indicator'
-        wrapper.appendChild(indicator)
-        dragState.indicator = indicator
-        try { wrapper.classList.add('is-dragging-' + dragState.kind) } catch {}
-      }
-      try {
-        const wrapperRect = wrapper.getBoundingClientRect()
-        const layoutHandlesNodes = dragState.kind === 'row' ? rowHandles : colHandles
-        const nodes = dragState.kind === 'row' ? Array.from(table.querySelectorAll('tr')) : Array.from(table.querySelectorAll('thead tr:first-child th'))
-        let target = nodes.length
-        for (let position = 0; position < nodes.length; position += 1) {
-          const rect = nodes[position].getBoundingClientRect()
-          if (dragState.kind === 'row') {
-            if (event.clientY < rect.top + rect.height / 2) { target = position; break }
-          } else if (event.clientX < rect.left + rect.width / 2) {
-            target = position
-            break
-          }
-        }
-        dragState.target = target
-        if (dragState.indicator !== null) {
-          if (dragState.kind === 'row') {
-            const rect = nodes[Math.min(target, nodes.length - 1)].getBoundingClientRect()
-            const top = target >= nodes.length ? rect.bottom : rect.top
-            dragState.indicator.style.top = (top - wrapperRect.top) + 'px'
-            dragState.indicator.style.left = (rect.left - wrapperRect.left) + 'px'
-            dragState.indicator.style.width = rect.width + 'px'
-            dragState.indicator.style.height = '2px'
-          } else {
-            const rect = nodes[Math.min(target, nodes.length - 1)].getBoundingClientRect()
-            const left = target >= nodes.length ? rect.right : rect.left
-            dragState.indicator.style.left = (left - wrapperRect.left - 1) + 'px'
-            dragState.indicator.style.top = (rect.top - wrapperRect.top) + 'px'
-            dragState.indicator.style.width = '2px'
-            dragState.indicator.style.height = rect.height + 'px'
-          }
-        }
-        for (const node of layoutHandlesNodes) node.classList.remove('is-dragging')
-      } catch {}
-    }
-    const endHandleDrag = (event, handle) => {
-      if (dragState === null) return
-      const state = dragState
-      dragState = null
-      try { handle.releasePointerCapture(event.pointerId) } catch {}
-      if (state.indicator !== null) state.indicator.remove()
-      for (const node of rowHandles) node.classList.remove('is-dragging')
-      for (const node of colHandles) node.classList.remove('is-dragging')
-      wrapper.classList.remove('is-dragging-row')
-      wrapper.classList.remove('is-dragging-col')
-      if (!state.moved) return
-      skipNextClick = true
-      if (state.kind === 'row') moveRowTo(state.index, state.target)
-      else moveColumnTo(state.index, state.target)
-    }
+
     const layoutHandles = () => {
       try {
         const wrapperRect = wrapper.getBoundingClientRect()
@@ -817,8 +862,8 @@ class TableWidget extends WidgetType {
           handle.dataset.index = String(index)
           handle.setAttribute('role', 'button')
           handle.setAttribute('tabindex', '0')
-          handle.setAttribute('aria-label', '选择整行')
-          handle.setAttribute('title', '选择整行（Shift 点击可多选，Backspace 删除，Ctrl+C 复制）')
+          handle.setAttribute('aria-label', '选择/拖动整行')
+          handle.setAttribute('title', '点击选中整行，Shift 点击多选，拖拽排序，Backspace 删除，Ctrl+C 复制')
           handle.innerHTML = gripVertical
           handle.style.top = (rect.top - wrapperRect.top) + 'px'
           handle.style.left = (rect.left - wrapperRect.left - 16) + 'px'
@@ -852,8 +897,8 @@ class TableWidget extends WidgetType {
           handle.dataset.index = String(index)
           handle.setAttribute('role', 'button')
           handle.setAttribute('tabindex', '0')
-          handle.setAttribute('aria-label', '选择整列')
-          handle.setAttribute('title', '选择整列（Shift 点击可多选，Backspace 删除，Ctrl+C 复制）')
+          handle.setAttribute('aria-label', '选择/拖动整列')
+          handle.setAttribute('title', '点击选中整列，Shift 点击多选，拖拽排序，Backspace 删除，Ctrl+C 复制')
           handle.innerHTML = gripHorizontal
           handle.style.left = (rect.left - wrapperRect.left) + 'px'
           handle.style.top = (tableRect.top - wrapperRect.top - 16) + 'px'
@@ -879,70 +924,55 @@ class TableWidget extends WidgetType {
         })
       } catch {}
     }
-    const deleteSelection = () => {
-      const range = selectionRange()
-      if (range === null) return false
-      let applied = false
-      if (range.kind === 'row') {
-        applyEdit((rows) => {
-          if (rows.length <= 1) return false
-          const count = Math.min(range.end - range.start + 1, rows.length - 1)
-          const startRow = Math.min(range.start, rows.length - count)
-          rows.splice(startRow, count)
-          applied = true
-          return true
-        })
-      } else {
-        applyEdit((rows, separator) => {
-          const columns = (rows[0] ?? []).length
-          if (columns <= 1) return false
-          const count = Math.min(range.end - range.start + 1, columns - 1)
-          const startColumn = Math.min(range.start, columns - count)
-          for (const row of rows) row.splice(startColumn, count)
-          separator.splice(startColumn, count)
-          applied = true
-          return true
-        })
+
+    const cellValuesOf = (row, colStart, colEnd) => {
+      const values = []
+      if (row === undefined) return values
+      for (let index = colStart; index <= colEnd; index += 1) {
+        const cell = row[index]
+        values.push(cell === undefined ? '' : String(cell.text ?? '').trim())
       }
-      if (applied) clearSelection()
-      return applied
+      return values
     }
+
     const selectionToText = () => {
       const range = selectionRange()
       if (range === null) return ''
       const lines = []
-      for (let rowIndex = range.start; rowIndex <= range.end; rowIndex += 1) {
-        const row = this.rows[rowIndex]
-        if (row === undefined) continue
-        const values = []
-        const firstCell = range.kind === 'row' ? 0 : range.start
-        const lastCell = range.kind === 'row' ? row.length - 1 : range.end
-        for (let cellIndex = firstCell; cellIndex <= lastCell; cellIndex += 1) {
-          const cell = row[cellIndex]
-          if (cell !== undefined) values.push((cell.text ?? '').trim())
+      if (range.kind === 'cell') {
+        for (let rowIndex = range.rowStart; rowIndex <= range.rowEnd; rowIndex += 1) {
+          lines.push(cellValuesOf(this.rows[rowIndex], range.colStart, range.colEnd).join('\t'))
         }
-        lines.push(values.join('\t'))
+        return lines.join('\n')
+      }
+      for (let index = range.start; index <= range.end; index += 1) {
+        const row = range.kind === 'row' ? this.rows[index] : this.rows[index]
+        if (row === undefined) continue
+        lines.push(cellValuesOf(row, range.kind === 'row' ? 0 : range.start, range.kind === 'row' ? row.length - 1 : range.end).join('\t'))
       }
       return lines.join('\n')
     }
+
     const selectionToMarkdown = () => {
       const range = selectionRange()
       if (range === null) return ''
       const lines = []
-      for (let rowIndex = range.start; rowIndex <= range.end; rowIndex += 1) {
-        const row = this.rows[rowIndex]
-        if (row === undefined) continue
-        const values = []
-        const firstCell = range.kind === 'row' ? 0 : range.start
-        const lastCell = range.kind === 'row' ? row.length - 1 : range.end
-        for (let cellIndex = firstCell; cellIndex <= lastCell; cellIndex += 1) {
-          const cell = row[cellIndex]
-          if (cell !== undefined) values.push((cell.text ?? '').trim())
+      if (range.kind === 'cell') {
+        for (let rowIndex = range.rowStart; rowIndex <= range.rowEnd; rowIndex += 1) {
+          const values = cellValuesOf(this.rows[rowIndex], range.colStart, range.colEnd)
+          lines.push('| ' + values.join(' | ') + ' |')
         }
+        return lines.join('\n')
+      }
+      for (let index = range.start; index <= range.end; index += 1) {
+        const row = this.rows[index]
+        if (row === undefined) continue
+        const values = cellValuesOf(row, range.kind === 'row' ? 0 : range.start, range.kind === 'row' ? row.length - 1 : range.end)
         lines.push('| ' + values.join(' | ') + ' |')
       }
       return lines.join('\n')
     }
+
     const copySelection = (asMarkdown) => {
       const value = asMarkdown === true ? selectionToMarkdown() : selectionToText()
       if (value === '') return false
@@ -969,6 +999,133 @@ class TableWidget extends WidgetType {
       } catch {}
       return fallback()
     }
+
+    const deleteSelection = () => {
+      const range = selectionRange()
+      if (range === null) return false
+      let applied = false
+      if (range.kind === 'row') {
+        applyEdit((rows) => {
+          if (rows.length <= 1) return false
+          const count = Math.min(range.end - range.start + 1, rows.length - 1)
+          const startRow = Math.min(range.start, rows.length - count)
+          rows.splice(startRow, count)
+          applied = true
+          return true
+        })
+      } else if (range.kind === 'col') {
+        applyEdit((rows, separator) => {
+          const columns = (rows[0] ?? []).length
+          if (columns <= 1) return false
+          const count = Math.min(range.end - range.start + 1, columns - 1)
+          const startColumn = Math.min(range.start, columns - count)
+          for (const row of rows) row.splice(startColumn, count)
+          separator.splice(startColumn, count)
+          applied = true
+          return true
+        })
+      } else {
+        // 跨格选区：覆盖整行 → 删行；覆盖整列 → 删列；否则清空单元格内容
+        const columns = (this.rows[0] ?? []).length
+        const allColumns = range.colStart === 0 && range.colEnd === columns - 1
+        const allRows = range.rowStart === 0 && range.rowEnd === this.rows.length - 1
+        if (allColumns && !allRows) {
+          applyEdit((rows) => {
+            if (rows.length <= 1) return false
+            const count = Math.min(range.rowEnd - range.rowStart + 1, rows.length - 1)
+            const startRow = Math.min(range.rowStart, rows.length - count)
+            rows.splice(startRow, count)
+            applied = true
+            return true
+          })
+        } else if (allRows && !allColumns) {
+          applyEdit((rows, separator) => {
+            const columnCount = (rows[0] ?? []).length
+            if (columnCount <= 1) return false
+            const count = Math.min(range.colEnd - range.colStart + 1, columnCount - 1)
+            const startColumn = Math.min(range.colStart, columnCount - count)
+            for (const row of rows) row.splice(startColumn, count)
+            separator.splice(startColumn, count)
+            applied = true
+            return true
+          })
+        } else {
+          applyEdit((rows) => {
+            for (let rowIndex = range.rowStart; rowIndex <= range.rowEnd; rowIndex += 1) {
+              const row = rows[rowIndex]
+              if (row === undefined) continue
+              for (let colIndex = range.colStart; colIndex <= range.colEnd; colIndex += 1) {
+                if (row[colIndex] !== undefined) row[colIndex] = ''
+              }
+            }
+            applied = true
+            return true
+          })
+        }
+      }
+      if (applied) clearSelection()
+      return applied
+    }
+
+    // 跨格拖拽选择：在单元格内按下并拖到其它单元格时，进入矩形选区（单元格内拖拽仍是原生文本选择）。
+    wrapper.addEventListener('mousedown', (event) => {
+      const target = event.target
+      if (target === null || typeof target.closest !== 'function') return
+      if (target.closest('.gh-md-cm6-table-row-handle') !== null) return
+      if (target.closest('.gh-md-cm6-table-col-handle') !== null) return
+      const cell = target.closest('th,td')
+      if (cell === null || event.button !== 0) {
+        clearSelection()
+        return
+      }
+      cellDrag = { row: Number(cell.dataset.row), col: Number(cell.dataset.cell), startX: event.clientX, startY: event.clientY, active: false }
+    })
+    wrapper.addEventListener('mousemove', (event) => {
+      if (cellDrag === null) return
+      const target = event.target
+      const cell = target === null || typeof target.closest !== 'function' ? null : target.closest('th,td')
+      if (!cellDrag.active) {
+        const distance = Math.abs(event.clientX - cellDrag.startX) + Math.abs(event.clientY - cellDrag.startY)
+        if (distance < 6 || cell === null) return
+        const row = Number(cell.dataset.row)
+        const col = Number(cell.dataset.cell)
+        if (row === cellDrag.row && col === cellDrag.col) return
+        cellDrag.active = true
+        wrapper.classList.add('is-cell-selecting')
+        try { window.getSelection()?.removeAllRanges() } catch {}
+        wrapper.tabIndex = -1
+        try { wrapper.focus({ preventScroll: true }) } catch {}
+      }
+      if (cell === null) return
+      applyCellSelection(cellDrag.row, cellDrag.col, Number(cell.dataset.row), Number(cell.dataset.cell))
+    })
+    const onDocumentMouseUp = () => {
+      if (cellDrag === null) return
+      if (cellDrag.active) skipCellClick = true
+      cellDrag = null
+      wrapper.classList.remove('is-cell-selecting')
+    }
+    const onDocumentSelectStart = (event) => {
+      if (cellDrag !== null && cellDrag.active) event.preventDefault()
+    }
+    document.addEventListener('mouseup', onDocumentMouseUp)
+    document.addEventListener('selectstart', onDocumentSelectStart)
+    wrapper.__ghMdTableCleanup = () => {
+      document.removeEventListener('mouseup', onDocumentMouseUp)
+      document.removeEventListener('selectstart', onDocumentSelectStart)
+    }
+    wrapper.addEventListener('click', (event) => {
+      if (skipCellClick) {
+        skipCellClick = false
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+      const target = event.target
+      if (target === null || typeof target.closest !== 'function') return
+      if (target.closest('th,td') !== null && selection !== null) clearSelection()
+    })
+
     wrapper.addEventListener('keydown', (event) => {
       if (selection === null) return
       if (event.key === 'Backspace' || event.key === 'Delete') {
@@ -988,13 +1145,6 @@ class TableWidget extends WidgetType {
         event.stopPropagation()
         clearSelection()
       }
-    })
-    wrapper.addEventListener('mousedown', (event) => {
-      const target = event.target
-      if (target === null || typeof target.closest !== 'function') return
-      if (target.closest('.gh-md-cm6-table-row-handle') !== null) return
-      if (target.closest('.gh-md-cm6-table-col-handle') !== null) return
-      clearSelection()
     })
     const syncTableSize = () => {
       try {
