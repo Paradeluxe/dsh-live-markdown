@@ -53,8 +53,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table { position: relative; margin: 0; padding: 0 18px 0 0; overflow: visible; }
 .gh-md-cm6-lp .gh-md-cm6-table-scroll { padding: 16px 0; overflow-x: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: 0; width: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 16px; height: var(--gh-md-table-h, 0px); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) / 2); width: 64px; transform: translateX(-50%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 50%; height: 64px; transform: translateY(-50%); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table-col-handle { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); background: transparent; border-radius: 4px; opacity: 0; pointer-events: none; cursor: pointer; z-index: 2; transition: opacity .12s ease, color .12s ease, background-color .12s ease; }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
@@ -1161,6 +1161,18 @@ class TableWidget extends WidgetType {
       clearSelection()
     }
     document.addEventListener('mousedown', onDocumentMouseDown, true)
+    let remeasureScheduled = false
+    const requestTableRemeasure = () => {
+      if (remeasureScheduled) return
+      remeasureScheduled = true
+      window.requestAnimationFrame(() => {
+        remeasureScheduled = false
+        try {
+          const view = this.host === null || this.host === undefined ? null : this.host.view
+          if (view !== null && view !== undefined) view.requestMeasure()
+        } catch {}
+      })
+    }
     const syncTableSize = () => {
       try {
         const rect = table.getBoundingClientRect()
@@ -1168,6 +1180,9 @@ class TableWidget extends WidgetType {
         wrapper.style.setProperty('--gh-md-table-h', Math.round(rect.height) + 'px')
       } catch {}
       layoutHandles()
+      // 表格高度/宽度变化（换行、滚动条、字体加载）后通知 CM6 重新测量，
+      // 否则高度表会滞后，点击/选区会落到偏下的位置。
+      requestTableRemeasure()
     }
     try { scroll.addEventListener('scroll', () => layoutHandles(), { passive: true }) } catch {}
     syncTableSize()

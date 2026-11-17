@@ -191,6 +191,16 @@ Measured in the real GUI with a full-width 5-column table:
 - add-column plus left edge = table right edge, so its overlay over the table is 0px; the strip is visible on hover inside the gutter,
 - narrow tables keep the plus adjacent to the table edge.
 
+## Table edge clicks (1.1.10)
+
+Reproduced: clicking just below a table in the old build hit the full-width add-row strip, added a row and moved the caret below the table.
+
+`gui-table-click-edge-check.mjs` (6 assertions, part of the GUI suite):
+
+- a click below the table but off-centre adds no row and leaves the caret on the blank line below the table;
+- a click on the centred plus below the table still adds a row;
+- a click just right of the table, away from the centred plus, adds no column; zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

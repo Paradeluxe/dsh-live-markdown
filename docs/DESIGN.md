@@ -2397,3 +2397,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 资源缓存：`loadScriptOnce` / `loadStyleOnce` 统一走 `withBuildVersion()`，给 URL 加 `?v=<BUILD_STAMP>`；
 - 加列按钮：wrapper 预留 `padding-right: 18px`，`.gh-md-cm6-table-scroll` 占内容宽度，加号条用 `left: min(表格宽度, 100% - 18px)` 落在 gutter，不再覆盖最后一列；行加号条宽度同样 clamp；
 - 回归：`gui-table-delete-focus-check.mjs` 用真实鼠标拖拽 + 手动 focus 到 `cm-content` 复现并验证修复。
+
+---
+
+## 135. v1.1.10：表格边缘点击
+
+- 现象：表格正下方点一下想写字，结果多出一行、光标跳到表格之后（"点哪里却跳到偏下"）；
+- 根因：`.gh-md-cm6-table-add-row` 是整行宽、`.gh-md-cm6-table-add-col` 是整列高，且表格下方/右侧 16px 属于 widget，点击命中加号条；
+- 修复：加行条改为 `left: calc(min(表格宽度, 100% - 18px) / 2); width: 64px; translateX(-50%)`；加列条改为 `top: 50%; height: 64px; translateY(-50%)`；条外区域点击穿透到表格 widget 的空白区，光标落到表格后的空行；
+- 高度表：`syncTableSize()` 里 `requestTableRemeasure()`（rAF 合流）主动 `view.requestMeasure()`，覆盖单元格换行/滚动条/字体加载导致的尺寸变化；
+- 回归：`gui-table-click-edge-check.mjs`（6 项）验证偏心点击不加行、居中 + 加行、右缘外侧不加列、无报错。
