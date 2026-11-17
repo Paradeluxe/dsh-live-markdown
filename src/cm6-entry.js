@@ -73,8 +73,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-col-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
-.gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: none; margin: 0; table-layout: auto; }
-.gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: normal; overflow-wrap: normal; min-width: 0 !important; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
+.gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: normal; overflow-wrap: break-word; min-width: 3em; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
 .gh-md-cm6-lp .gh-md-cm6-table th { background: transparent; font-weight: 600; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { text-align: left; }
 .gh-md-cm6-lp .gh-md-lp-h1, .gh-md-cm6-lp .gh-md-lp-h2, .gh-md-cm6-lp .gh-md-lp-h3, .gh-md-cm6-lp .gh-md-lp-h4, .gh-md-cm6-lp .gh-md-lp-h5, .gh-md-cm6-lp .gh-md-lp-h6 { text-decoration: none; }
@@ -1210,15 +1210,61 @@ class TableWidget extends WidgetType {
         window.setTimeout(syncTableSize, 60)
       } catch {}
     }
+    // 给长 token（URL、哈希、长路径）插入零宽断点，让单元格能换行；
+    // 普通英文单词不加断点，因此不会被从中间切断。
+    const addWordBreakHints = (node) => {
+      try {
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null)
+        const textNodes = []
+        while (walker.nextNode()) textNodes.push(walker.currentNode)
+        for (const textNode of textNodes) {
+          const value = textNode.nodeValue ?? ''
+          if (!/[^\s]{13,}/.test(value)) continue
+          if (/[\u4e00-\u9fff]/u.test(value)) continue
+          const fragment = document.createDocumentFragment()
+          const chunkPattern = /(\s+|[^\s]+)/gu
+          let match
+          while ((match = chunkPattern.exec(value)) !== null) {
+            const chunk = match[0]
+            if (/^\s+$/u.test(chunk) || chunk.length < 13) {
+              fragment.appendChild(document.createTextNode(chunk))
+              continue
+            }
+            let inserted = false
+            let buffer = ''
+            for (let index = 0; index < chunk.length; index += 1) {
+              buffer += chunk[index]
+              const isSeparator = '/_\-.,;:'.includes(chunk[index])
+              const nextIsSeparator = index + 1 < chunk.length && '/_\-.,;:'.includes(chunk[index + 1])
+              const longSegment = buffer.length >= 12
+              if (index < chunk.length - 1 && (isSeparator && !nextIsSeparator || longSegment)) {
+                fragment.appendChild(document.createTextNode(buffer))
+                fragment.appendChild(document.createElement('wbr'))
+                buffer = ''
+                inserted = true
+              }
+            }
+            if (buffer !== '') fragment.appendChild(document.createTextNode(buffer))
+            if (!inserted) {
+              // 没有断点也要保证长 token 可换行：回退成纯文本
+              fragment.appendChild(document.createTextNode(''))
+            }
+          }
+          textNode.parentNode.replaceChild(fragment, textNode)
+        }
+      } catch {}
+    }
     const renderCell = (node, raw) => {
       if (this.host.renderInline !== undefined && document.activeElement !== node) {
         const html = this.host.renderInline(raw)
         if (typeof html === 'string') {
           node.innerHTML = html
+          addWordBreakHints(node)
           return
         }
       }
       node.textContent = raw
+      addWordBreakHints(node)
     }
     const cellsForRender = wrapper.querySelectorAll('td,th')
     let renderIndex = 0

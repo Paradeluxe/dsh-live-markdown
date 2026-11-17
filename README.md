@@ -429,3 +429,15 @@ MIT — see [LICENSE](LICENSE).
 1. 表格操作最后一步改为 `view.dispatch({ selection: {...}, scrollIntoView: false })`，不主动滚动；
 2. 编辑前记录 `.cm-scroller` 的 `scrollTop` / `scrollLeft`，等重建与重新测量完成后（60ms）如果被移动超过 2px 就恢复；
 3. 新增 `gui-scroll-preserve-check.mjs`（8 项）：在长文档中间滚动到表格后，行拖拽、点 `+` 加行、手柄选行 + Backspace 删除，三种操作前后 `scrollTop` 都不变（795→795、891→891、891→891），且表格结构确实发生变化。
+
+## 1.1.14（v1.1.14）：表格单元格恢复换行
+
+1.1.11 为对齐 Obsidian 把单元格改成 `word-break: normal; overflow-wrap: normal`，普通单词确实不再被切断，但**长 URL / 长哈希 / 长路径**这类没有空格的 token 也无法换行，会把整张表撑得很宽、横向滚动。
+
+现在改为：
+
+1. 渲染单元格时给**长 token 内部插入 `<wbr>` 断点**（在 `/ _ - . , ; :` 之后，或每 12 个字符），普通英文单词不加断点——所以句子按空格换行、`configuration` 这类词不会被切开，而 URL 会在斜杠处、哈希会每 12 字符处换行；
+2. 单元格恢复 `overflow-wrap: break-word` 作为兜底，表格 `max-width: 100%` **重新适配面板宽度**（不再横向溢出）；
+3. 单元格 `min-width: 3em`，避免中文列被压成"一列一个字"（截图里 `类型 / 长句子` 现在都是正常一行）。
+
+实测（1100px 面板）：表格 301px 适配容器；长句子按单词换行、无单词被切断；URL 换成 8 行；哈希每 12 字符换行；中文正常换行；首列宽度 65px。新增/更新 `gui-table-wrap-check.mjs`（7 项）覆盖这些断言。

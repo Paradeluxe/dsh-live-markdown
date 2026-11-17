@@ -229,6 +229,17 @@ Measured in the running GUI: `.gh-md-document` computes to `padding: 16px 32px 2
 - selecting a row via its handle and pressing Backspace keeps scrollTop at 891 while the row count goes 4 -> 3;
 - zero page errors.
 
+## Cell wrapping in 1.1.14
+
+After 1.1.11 long unbroken tokens could not wrap. The renderer now inserts <wbr> hints inside long tokens and the wrap check grew to 7 assertions:
+
+- no plain word spans two lines (Range.getClientRects per word, long tokens excluded);
+- word-break is normal and overflow-wrap is break-word;
+- the https URL wraps over multiple lines (8 lines in a 1100px window);
+- the table fits its container (301px table in a 301px scroller);
+- the first column keeps a readable width (65px), so CJK headers are not one character per line;
+- zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

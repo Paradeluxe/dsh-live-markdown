@@ -2435,3 +2435,13 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - 根因：`applyEdit` 最后一步把光标放到表格后一行并 `view.dispatch({ selection })`，CM6 默认 `scrollIntoView: true`，会滚动到光标；表格操作是"源码态 → 改文本 → 渲染态"三段式，重排后光标位置与实际布局可能差得较远，于是看起来像跳页；
 - 修复：最后一步传 `scrollIntoView: false`；同时在 `applyEdit` 开始时记录 `view.scrollDOM.scrollTop/scrollLeft`，在重建 + `requestMeasure()` 之后（60ms）若滚动位置变化超过 2px 就恢复；
 - 回归：`gui-scroll-preserve-check.mjs`（8 项）在长文档中间验证行拖拽、加行、删行前后 `scrollTop` 不变。
+
+---
+
+## 139. v1.1.14：单元格换行与长 token 断点
+
+- 背景：1.1.11 采用 Obsidian 的 `word-break: normal; overflow-wrap: normal` 后，普通单词不再被切断，但长 URL/哈希/路径无法换行，表格被撑宽并横向滚动；
+- 方案：`renderCell` 渲染完单元格后调用 `addWordBreakHints(node)`：遍历文本节点，跳过含 CJK 的文本；对长度 ≥ 13 的非空白 token，在 `/ _ - . , ; :` 之后插入 `<wbr>`，或每 12 个字符插入一个 `<wbr>`；普通单词（短于 13 或没有分隔符的单词）不加断点；
+- CSS：单元格 `word-break: normal; overflow-wrap: break-word;`，`min-width: 3em`（防止 CJK 列被压成一字一行）；表格 `max-width: 100%` 重新适配面板；
+- 编辑兼容：`focusin` 时 `textContent = raw` 会清掉 wbr，失焦后 `renderCell` 重新插入；输入/读取仍用 `textContent`，不影响文档文本；
+- 回归：`gui-table-wrap-check.mjs`（7 项）验证无普通单词跨行、URL 多行、表格适配、首列可读宽度。
