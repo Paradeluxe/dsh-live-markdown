@@ -601,6 +601,10 @@ class TableWidget extends WidgetType {
       const tableText = buildTableText(nextRows, nextSeparator)
       const tableFrom = this.tableFrom
       const tableTo = this.tableTo
+      // 表格操作不应该改变用户的滚动位置：记录并在最后恢复。
+      const scrollElement = view.scrollDOM
+      const savedScrollTop = scrollElement === null || scrollElement === undefined ? null : scrollElement.scrollTop
+      const savedScrollLeft = scrollElement === null || scrollElement === undefined ? null : scrollElement.scrollLeft
       // 表格是覆盖整块的 block widget：在它自身范围内改文本会让 CM6 在更新中途替换
       // 高度表（不刷新 / "No tile" 崩溃）。所以先用一个独立事务把该表格切成源码态
       //（widget 先被移除），再改文本，最后恢复渲染态——每一步都是独立的 transaction。
@@ -630,8 +634,17 @@ class TableWidget extends WidgetType {
             const currentDoc = view.state.doc
             const tableEnd = Math.min(tableFrom + tableText.length, currentDoc.length)
             const afterLine = Math.min(currentDoc.lineAt(tableEnd).number + 1, currentDoc.lines)
-            view.dispatch({ selection: { anchor: currentDoc.line(afterLine).from } })
+            view.dispatch({ selection: { anchor: currentDoc.line(afterLine).from }, scrollIntoView: false })
             view.focus()
+            window.setTimeout(() => {
+              try {
+                if (scrollElement !== null && scrollElement !== undefined) {
+                  if (savedScrollTop !== null && Math.abs(scrollElement.scrollTop - savedScrollTop) > 2) scrollElement.scrollTop = savedScrollTop
+                  if (savedScrollLeft !== null && Math.abs(scrollElement.scrollLeft - savedScrollLeft) > 2) scrollElement.scrollLeft = savedScrollLeft
+                }
+                view.requestMeasure()
+              } catch {}
+            }, 60)
           } catch {}
         }, 24)
       }, 24)

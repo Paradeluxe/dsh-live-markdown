@@ -419,3 +419,13 @@ MIT — see [LICENSE](LICENSE).
 - 折叠箭头保留在 `.cm-content` 左侧的 18px 空间里，悬停展开/折叠不受影响（已回归 heading/list/ordered/task 四组折叠检查）。
 
 实测：`.gh-md-document` 计算值 `padding: 16px 32px 24px`，`.cm-line` 距左右各 50px；`gui-width-check` 的页边距断言收紧为「≥28px 且左右相等」。
+
+## 1.1.13（v1.1.13）：表格操作不再让页面滚动/跳动
+
+表格的加行、加列、删行、删列、拖拽排序最后都会把光标放到表格后面一行，而 CM6 默认会**把光标滚进视野**——所以在长文档里一操作表格，页面就可能滚走（表现成"跳到底部"）。
+
+修复：
+
+1. 表格操作最后一步改为 `view.dispatch({ selection: {...}, scrollIntoView: false })`，不主动滚动；
+2. 编辑前记录 `.cm-scroller` 的 `scrollTop` / `scrollLeft`，等重建与重新测量完成后（60ms）如果被移动超过 2px 就恢复；
+3. 新增 `gui-scroll-preserve-check.mjs`（8 项）：在长文档中间滚动到表格后，行拖拽、点 `+` 加行、手柄选行 + Backspace 删除，三种操作前后 `scrollTop` 都不变（795→795、891→891、891→891），且表格结构确实发生变化。

@@ -220,6 +220,15 @@ Measured in the running GUI: `.gh-md-document` computes to `padding: 16px 32px 2
 
 `gui-width-check` now asserts page margins of at least 28px and equal left/right; `gui-spacing-check` still passes its fold-chevron hover assertions.
 
+## Scroll stability during table edits (1.1.13)
+
+`gui-scroll-preserve-check.mjs` (8 assertions, part of the GUI suite), with the table in the middle of a long document:
+
+- after scrolling so the table sits around 250px from the top, dragging the second row handle to the bottom keeps scrollTop at 795 while the rows really reorder;
+- clicking the centred add-row plus keeps scrollTop at 891 while the row count goes 3 -> 4;
+- selecting a row via its handle and pressing Backspace keeps scrollTop at 891 while the row count goes 4 -> 3;
+- zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

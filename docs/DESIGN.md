@@ -2426,3 +2426,12 @@ v0.35 只验证了「整篇 EditorView + 行内标记隐藏/淡化」。这轮�
 - `.gh-md-cm6-lp .cm-content` 由 `padding: 4px 0 4px 18px` 改为 `padding: 4px 18px`：左侧 18px 是折叠箭头预留空间（不能归零，否则箭头被裁掉、四组折叠检查全挂），右侧补同样的 18px 让正文左右对称；最终正文距页面边缘 50 / 50；
 - 折叠箭头留在 `.cm-content` 左侧的 18px 空间，悬停仍可见可点（回归 heading/list/ordered/task 折叠检查全过）；
 - `gui-width-check` 断言改为 `padLeft >= 28 && padLeft <= 36 && padRight === padLeft`，锁定左右对称的页边距。
+
+---
+
+## 138. v1.1.13：表格操作保持滚动位置
+
+- 现象：在长文档里拖动行/列（或加行删行）后页面跳到别处，疑似"跳到底部"；
+- 根因：`applyEdit` 最后一步把光标放到表格后一行并 `view.dispatch({ selection })`，CM6 默认 `scrollIntoView: true`，会滚动到光标；表格操作是"源码态 → 改文本 → 渲染态"三段式，重排后光标位置与实际布局可能差得较远，于是看起来像跳页；
+- 修复：最后一步传 `scrollIntoView: false`；同时在 `applyEdit` 开始时记录 `view.scrollDOM.scrollTop/scrollLeft`，在重建 + `requestMeasure()` 之后（60ms）若滚动位置变化超过 2px 就恢复；
+- 回归：`gui-scroll-preserve-check.mjs`（8 项）在长文档中间验证行拖拽、加行、删行前后 `scrollTop` 不变。
