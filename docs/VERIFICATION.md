@@ -288,6 +288,14 @@ gui-table-obsidian-check.mjs is now 51 assertions; six new ones cover the keyboa
 - Shift+ArrowRight inside the text does not create a cell selection (normal text selection stays);
 - Shift+ArrowUp selects the row above.
 
+## Cross-application copy comparison (1.1.19)
+
+Nine edge-case tables were copied as a whole inside Obsidian and inside the plugin (same drag selection, same Ctrl+C) and compared byte for byte; all nine matched after the fix below.
+
+Fixtures: mixed CJK/ASCII (`| 名称 | note | 値 |` with `😀 emoji`), inline formatting (`**bold**`, `[example](https://example.com)`, `` `code` ``), ragged rows (a row with fewer cells), empty cells, `a \| b` plus `第一行<br>第二行`, a 26-character word, every alignment combination (`---`, `:---`, `:---:`, `---:`), and CJK headers with check/cross glyphs.
+
+The one real difference found: Obsidian preserves an explicit `:---` left-alignment marker (`:----` in the copied separator), while the plugin normalised it to `-----`. Alignment parsing now distinguishes `---` from `:---`; rendering looks identical and copying writes the original marker. Four of the fixtures are now permanent assertions in gui-table-obsidian-check.mjs (55 assertions total).
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

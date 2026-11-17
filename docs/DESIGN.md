@@ -2500,3 +2500,13 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - `caretOffsetInCell(cell)`：用 Range 计算光标字符偏移，只有 `offset >= 文本长度`（→）或 `offset === 0`（←）时才越界扩展，否则不阻止默认行为，保留原生文本选区；
 - 窗口级 `onWindowKeyDown` 处理「有选区」的方向键；单元格 `keydown` 处理「焦点在单元格内」的 Shift+方向键；
 - 所有方向键路径都 `preventDefault + stopPropagation`（只在真正扩展/移动时），不影响表格外的输入。
+
+---
+
+## 144. v1.1.19：跨应用复制对照测试与 `:---` 标记
+
+**对照方法**：9 张边角表格分别写入 Obsidian vault 与工作区；Obsidian 侧用 CDP 打开、拖选整表、Ctrl+C 读剪贴板；插件侧用 Playwright 打开、同样的拖选与 Ctrl+C；两边字符串逐字符比对（先统一 `\r\n`）。夹具覆盖：中英混排、emoji、行内加粗/链接/代码、参差行、空单元格、转义竖线、`<br>`、26 字符长单词、`---`/`:---`/`:---:`/`---:` 四种对齐、勾叉符号。结果 **9/9 一致**。
+
+**修掉的差异**：Obsidian 把 `:---` 视为「左对齐 + 显式冒号」，复制时写回 `:---`（冒号 + `width-1` 个破折号）；插件原先把它归一化成 `---`。
+
+实现：`parseAlignmentsFromLines()` 返回 `left` / `left-colon` / `center` / `right`；新增 `displayAlignment()` 把 `left-colon` 映射成视觉 `left`（`th/td` 渲染、`updateDOM` 都用它）；`formatSeparatorCell()` 增加 `left-colon → 冒号 + width-1 个破折号`；`padAligned()` 的 `left-colon` 走左对齐填充；HTML 序列化的 `styleAt` 只对 center/right 写 style。

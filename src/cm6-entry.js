@@ -480,10 +480,21 @@ function parseAlignmentsFromLines(lines) {
     return parseCells(line).map((cell) => {
       const left = cell.startsWith(':')
       const right = cell.endsWith(':')
-      return left && right ? 'center' : right ? 'right' : 'left'
+      if (left && right) return 'center'
+      if (right) return 'right'
+      // Obsidian 会保留手写的「左对齐但带冒号」写法（:---），复制时也写回 :---。
+      if (left) return 'left-colon'
+      return 'left'
     })
   }
   return []
+}
+
+// 渲染用：left-colon 与 left 的视觉效果相同，只是复制时保留冒号。
+function displayAlignment(alignment) {
+  if (alignment === 'center') return 'center'
+  if (alignment === 'right') return 'right'
+  return 'left'
 }
 
 function parseTableBlock(doc, from, to) {
@@ -561,7 +572,7 @@ class TableWidget extends WidgetType {
       th.contentEditable = 'plaintext-only'
       th.dataset.row = '0'
       th.dataset.cell = String(cellIndex)
-      th.style.textAlign = this.alignments[cellIndex] ?? 'left'
+      th.style.textAlign = displayAlignment(this.alignments[cellIndex])
       th.textContent = cell.text
       headerRow.appendChild(th)
     })
@@ -575,7 +586,7 @@ class TableWidget extends WidgetType {
         td.contentEditable = 'plaintext-only'
         td.dataset.row = String(rowIndex + 1)
         td.dataset.cell = String(cellIndex)
-        td.style.textAlign = this.alignments[cellIndex] ?? 'left'
+        td.style.textAlign = displayAlignment(this.alignments[cellIndex])
         td.textContent = cell.text
         tr.appendChild(td)
       })
@@ -1101,10 +1112,11 @@ class TableWidget extends WidgetType {
       return raw + ' '.repeat(total)
     }
 
-    // 分隔行的对齐标记：--- / :---: / ---:
+    // 分隔行的对齐标记：--- / :--- / :---: / ---:（Obsidian 会区分 :--- 与 ---）
     const formatSeparatorCell = (width, alignment) => {
       if (alignment === 'center') return ':' + '-'.repeat(Math.max(1, width - 2)) + ':'
       if (alignment === 'right') return '-'.repeat(Math.max(1, width - 1)) + ':'
+      if (alignment === 'left-colon') return ':' + '-'.repeat(Math.max(1, width - 1))
       return '-'.repeat(width)
     }
 
@@ -1125,7 +1137,7 @@ class TableWidget extends WidgetType {
       }
       const alignmentAt = (col) => {
         const value = columnAlignments[col]
-        return value === 'center' || value === 'right' ? value : 'left'
+        return value === 'center' || value === 'right' || value === 'left-colon' ? value : 'left'
       }
       const formatRow = (cells) => '| ' + widths.map((width, col) => padAligned(cells[col] === undefined ? '' : cells[col], width, alignmentAt(col))).join(' | ') + ' |'
       const lines = [formatRow(matrix[0])]
@@ -2194,7 +2206,7 @@ class TableWidget extends WidgetType {
             node.textContent = cell.text
           }
         }
-        node.style.textAlign = this.alignments[index % Math.max(1, this.rows[0]?.length ?? 1)] ?? 'left'
+        node.style.textAlign = displayAlignment(this.alignments[index % Math.max(1, this.rows[0]?.length ?? 1)])
       }
     }
     return true
