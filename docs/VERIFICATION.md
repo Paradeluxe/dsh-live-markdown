@@ -339,6 +339,16 @@ Measured in the real GUI with deviceScaleFactor 2 (getBoundingClientRect, two de
 - SVG plus inside the button: centre equals the button centre;
 - row insert button: centreY equals the row boundary (0.00px) and its right edge equals the table left edge (0.00px).
 
+## No duplicated append controls (1.1.24)
+
+gui-table-insert-check.mjs (17 assertions) now also checks:
+
+- hovering the bottom edge of the table does not show the row boundary button (the bottom + pill appends there);
+- hovering the right edge does not show the column boundary button (the right + pill appends there);
+- the middle row boundary still shows the + button.
+
+Also re-ran: gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-add 13/13, gui-table-obsidian 55/55.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

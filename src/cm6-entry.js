@@ -1020,12 +1020,13 @@ class TableWidget extends WidgetType {
         const rowNodes = Array.from(table.querySelectorAll('tr'))
         const headerCells = Array.from(table.querySelectorAll('thead tr:first-child th'))
         if (rowNodes.length === 0 || headerCells.length === 0) { hideInsertAffordance(); return }
+        // 只在「已有行之间」提供插入：最后一条边界（表格底部/右侧）已经有 + 胶囊负责追加，
+        // 两套按钮同时出现会重复。
         const rowBounds = []
         for (let index = 1; index < rowNodes.length; index += 1) rowBounds.push({ index, y: rowNodes[index].getBoundingClientRect().top })
-        rowBounds.push({ index: rowNodes.length, y: rowNodes[rowNodes.length - 1].getBoundingClientRect().bottom })
         const colBounds = []
-        for (let index = 0; index < headerCells.length; index += 1) colBounds.push({ index, x: headerCells[index].getBoundingClientRect().left })
-        colBounds.push({ index: headerCells.length, x: headerCells[headerCells.length - 1].getBoundingClientRect().right })
+        for (let index = 0; index < headerCells.length - 1; index += 1) colBounds.push({ index, x: headerCells[index].getBoundingClientRect().left })
+        if (rowBounds.length === 0 && colBounds.length === 0) { hideInsertAffordance(); return }
         let rowPick = rowBounds[0]
         for (const item of rowBounds) if (Math.abs(item.y - event.clientY) < Math.abs(rowPick.y - event.clientY)) rowPick = item
         let colPick = colBounds[0]
