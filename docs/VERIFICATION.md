@@ -307,6 +307,19 @@ gui-table-insert-check.mjs (9 assertions):
 - the right-click 行 ▸ 在上方新增行 path still inserts a row;
 - zero page errors.
 
+## Undo / redo for table edits (1.1.21)
+
+gui-undo-check.mjs (12 assertions):
+
+- plain-text typing: Ctrl+Z removes it, Ctrl+Y restores it;
+- typing inside a cell: Ctrl+Z restores the original cell text, Ctrl+Y re-applies it;
+- the bottom + row pill: Ctrl+Z removes the added row, Ctrl+Y brings it back;
+- deleting a row via its grip and Backspace: Ctrl+Z restores the row;
+- inserting a row between two rows via the hover +: Ctrl+Z removes it;
+- Ctrl+Shift+Z redoes once and then leaves the document unchanged (it must not fall through to undo);
+- the table is never duplicated by the history fallback;
+- zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

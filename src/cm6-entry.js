@@ -1,6 +1,6 @@
 import { EditorState, EditorSelection, StateField, StateEffect, Prec, Transaction } from '@codemirror/state'
 import { EditorView, Decoration, WidgetType, keymap, drawSelection } from '@codemirror/view'
-import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, isolateHistory, redo, redoDepth, undo, undoDepth } from '@codemirror/commands'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { markdown, insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
 
@@ -640,7 +640,9 @@ class TableWidget extends WidgetType {
           const to = Math.min(tableTo, current.length)
           view.dispatch({
             changes: { from, to, insert: tableText },
-            annotations: Transaction.addToHistory.of(false),
+            // 表格操作必须能 Ctrl+Z 撤销；isolateHistory 让每一步单独成为一个撤销组，
+            // 不会和前面的打字合并。
+            annotations: [Transaction.addToHistory.of(true), isolateHistory.of('full')],
           })
         } catch {
           // 编辑失败时也要恢复渲染态
@@ -2215,6 +2217,23 @@ class TableWidget extends WidgetType {
       } catch {}
     }
     wrapper.addEventListener('keydown', (event) => {
+      // 单元格是 contenteditable：浏览器会自己处理 Ctrl+Z（只在格子里撤销 DOM 文本，
+      // 和文档不同步）。这里把撤销/重做转发给编辑器的 history。
+      if ((event.ctrlKey || event.metaKey) && event.altKey !== true) {
+        const key = typeof event.key === 'string' ? event.key.toLowerCase() : ''
+        const target = event.target
+        const insideCell = target !== null && typeof target.closest === 'function' && target.closest('th,td') !== null
+        if (insideCell && (key === 'z' || key === 'y')) {
+          event.preventDefault()
+          event.stopPropagation()
+          const view = this.host === null || this.host === undefined ? null : this.host.view
+          if (view !== null && view !== undefined) {
+            if (key === 'z' && event.shiftKey !== true) undoWithFallback(view)
+            else redoWithFallback(view)
+          }
+          return
+        }
+      }
       if (event.key !== 'Tab') return
       const target = event.target
       if (target === null || typeof target.closest !== 'function') return
@@ -3628,28 +3647,79 @@ let activeHost = null
 function applyHistoryFallback(view, entry) {
   if (entry === null || entry === undefined || typeof entry.text !== 'string') return false
   const anchor = Math.min(Number(entry.head) || 0, entry.text.length)
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: entry.text }, selection: { anchor } })
+  // 宿主历史回退不写入编辑器历史：否则回退一次就会让编辑器历史变成"非空"，
+  // 后续再按 Ctrl+Y 会被 hostHistoryAvailable() 挡住，无法重做宿主那一步。
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: entry.text },
+    selection: { anchor },
+    annotations: Transaction.addToHistory.of(false),
+  })
   return true
 }
 
-function undoWithFallback(view) {
-  if (undo(view)) return true
-  if (activeHost === null || typeof activeHost.undo !== 'function') return false
+/**
+ * 在表格 widget 覆盖整块文本的情况下，直接 undo/redo 会在 widget 内部改文本，
+ * 触发 CM6 高度表错乱（"No tile" / RangeError）。所以撤销/重做期间临时切到源码态：
+ * 中间态在同一个 JS 任务里完成，不会真的绘制出来，用户看不到闪烁。
+ */
+function withTableSourceMode(view, run) {
+  const hasTableWidget = view.dom !== null && view.dom !== undefined && view.dom.querySelector('.gh-md-cm6-table') !== null
+  if (!hasTableWidget) return run()
+  const scroller = view.scrollDOM
+  const savedTop = scroller === null || scroller === undefined ? null : scroller.scrollTop
+  const savedLeft = scroller === null || scroller === undefined ? null : scroller.scrollLeft
+  tableSourceMode = true
+  view.dispatch({ effects: rebuildEffect.of(null) })
+  let result = false
   try {
-    return applyHistoryFallback(view, activeHost.undo())
-  } catch {
-    return false
+    result = run()
+  } finally {
+    tableSourceMode = false
+    try {
+      view.dispatch({ effects: rebuildEffect.of(null) })
+      if (scroller !== null && scroller !== undefined) {
+        if (savedTop !== null && Math.abs(scroller.scrollTop - savedTop) > 2) scroller.scrollTop = savedTop
+        if (savedLeft !== null && Math.abs(scroller.scrollLeft - savedLeft) > 2) scroller.scrollLeft = savedLeft
+      }
+      view.requestMeasure()
+      if (!view.hasFocus) view.focus()
+    } catch {}
   }
+  return result
+}
+
+// 只有当编辑器自己的历史完全为空时，才把撤销/重做交给宿主应用。
+// 否则（例如刚撤销完、重做栈已空）宿主快照会把整篇文档替换掉，表格会被"复制"一份。
+const hostHistoryAvailable = (view) => undoDepth(view.state) === 0 && redoDepth(view.state) === 0
+
+function undoWithFallback(view) {
+  withTableSourceMode(view, () => {
+    if (undo(view)) return true
+    if (!hostHistoryAvailable(view)) return false
+    if (activeHost === null || typeof activeHost.undo !== 'function') return false
+    try {
+      return applyHistoryFallback(view, activeHost.undo())
+    } catch {
+      return false
+    }
+  })
+  // 始终返回 true：否则 CM6 会继续匹配下一个绑定，而 "Mod-z" 也会匹配 Ctrl+Shift+Z，
+  // 导致「没有可重做的内容时按 Ctrl+Shift+Z 反而撤销」。
+  return true
 }
 
 function redoWithFallback(view) {
-  if (redo(view)) return true
-  if (activeHost === null || typeof activeHost.redo !== 'function') return false
-  try {
-    return applyHistoryFallback(view, activeHost.redo())
-  } catch {
-    return false
-  }
+  withTableSourceMode(view, () => {
+    if (redo(view)) return true
+    if (!hostHistoryAvailable(view)) return false
+    if (activeHost === null || typeof activeHost.redo !== 'function') return false
+    try {
+      return applyHistoryFallback(view, activeHost.redo())
+    } catch {
+      return false
+    }
+  })
+  return true
 }
 
 function saveNowCommand() {
@@ -3788,6 +3858,20 @@ export function createLivePreview(options) {
         EditorState.allowMultipleSelections.of(true),
         // Obsidian：Alt+点击 增加一个光标（CM6 默认不支持，需要显式开启）
         EditorView.clickAddsSelectionRange.of((event) => event.altKey === true),
+        Prec.highest(EditorView.domEventHandlers({
+          keydown(event, view) {
+            if ((event.ctrlKey !== true && event.metaKey !== true) || event.altKey === true) return false
+            const key = typeof event.key === 'string' ? event.key.toLowerCase() : ''
+            if (key !== 'z' && key !== 'y') return false
+            const target = event.target
+            // 单元格自己会转发撤销/重做（contenteditable 需要拦截浏览器原生撤销）
+            if (target !== null && typeof target.closest === 'function' && target.closest('th,td') !== null) return false
+            event.preventDefault()
+            if (key === 'y' || event.shiftKey === true) redoWithFallback(view)
+            else undoWithFallback(view)
+            return true
+          },
+        })),
         Prec.highest(keymap.of(editingKeymap)),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap]),
         markdown(),

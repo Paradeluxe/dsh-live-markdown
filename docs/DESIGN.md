@@ -2529,3 +2529,17 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - `__ghMdTableCleanup` 里移除 document 监听，避免 widget 重建后残留。
 
 不干扰原有交互：行中间/列中部不显示按钮；拖拽中（`dragState`/`cellDrag`）不显示；指针离开区域即隐藏。
+
+---
+
+## 146. v1.1.21：表格编辑的撤销 / 重做
+
+问题：`applyEdit()` 里改文本的事务带 `Transaction.addToHistory.of(false)`（当初是为了绕开 block widget 内部改文本的崩溃），于是表格操作不进历史；`undoWithFallback()` 在 CM6 历史为空时会调用宿主应用的 `undo()` 并用 `applyHistoryFallback()` 把**整篇文档**替换成宿主快照——表格编辑后按 Ctrl+Z 就会看到文档被换成旧内容（表格重复、`RangeError: Invalid position`）。
+
+实现：
+
+- 改文本的事务改成 `[Transaction.addToHistory.of(true), isolateHistory.of('full')]`；`isolateHistory` 必须从 `@codemirror/commands` 导入（`Transaction.isolateHistory` 不存在，写错会抛异常被 catch 吞掉、编辑静默失效）。
+- `withTableSourceMode(view, run)`：撤销/重做时若有表格 widget，先 `tableSourceMode = true` + 重建装饰（widget 换成源码文本），再执行 undo/redo，最后恢复渲染态并还原滚动位置；三步在同一个 JS 任务内完成，不会绘制中间态。结束后 `view.focus()`，保证可以连续 Ctrl+Z。
+- 宿主历史回退加守卫 `hostHistoryAvailable()`：只有 `undoDepth === 0 && redoDepth === 0` 时才回退，避免在编辑器历史非空时整篇替换。
+- 撤销/重做改为 `Prec.highest(EditorView.domEventHandlers({ keydown }))`：CM6 的 keymap 对字母键忽略 Shift，`Mod-z` 会匹配 Ctrl+Shift+Z；没有可重做内容时会掉到 undo 上。DOM 处理器先拦截并 `preventDefault`，`undoWithFallback`/`redoWithFallback` 始终返回 true，阻止继续匹配。
+- 单元格（contenteditable）的 `keydown` 里转发 Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z 给编辑器，避免浏览器只撤销格子 DOM 文本。
