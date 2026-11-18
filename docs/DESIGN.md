@@ -2580,3 +2580,13 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 问题：表格最后一条行边界（底部）同时有边界插入 `+` 和底部 `+` 胶囊，右侧同理，两套按钮都做「在末尾追加」。
 
 修复：`onInsertHoverMove()` 收集边界时**不再包含最后一条**——行边界只取 `index 1 .. rowNodes.length - 1`（表头与第一行之间到最后两行之间），列边界只取 `index 0 .. headerCells.length - 2`（最左侧到倒数第二列之间）。末尾追加交给 Obsidian 风格的胶囊（`.gh-md-cm6-table-add-row` / `-add-col`）。边界数组为空时直接隐藏，避免单行/单列表格出错。
+
+---
+
+## 150. v1.1.25：hover 加号时有时无的三个原因
+
+**角落互斥**：`rowDistance <= 8 && (preferRow || colDistance > 8)` 与列方向同样的条件，在单元格角落（两个距离都 ≤ 8）互相否决，结果 `hideInsertAffordance()`。改为先算 `nearRow` / `nearCol`，两者都近时按距离更近的轴二选一（左侧留白优先行、上方留白优先列，距离相同取行），并在该方向没有边界时回退到另一个。
+
+**重建后 hover 不重算**：`applyEdit` 会重建整个 widget，新 DOM 上 `:hover` 要等下一次鼠标移动才生效，插入按钮也要等 mousemove。现在模块级记录 `lastPointerX/Y`（document `pointermove`，只写两个数字、不做 DOM 写入，避免之前那种干扰 CM6 点击判定的问题），`toDOM()` 末尾用 `requestAnimationFrame(syncHoverFromPointer)` 补一次：若指针仍在表格区域，给 wrapper 加 `.is-hover` 并调用一次 `onInsertHoverMove`。CSS 里胶囊与行/列手柄的显示条件都加上 `.is-hover` 版本。
+
+**按钮 mouseleave 抢跑**：按钮在 wrapper 盒子之外，从按钮移回表格会触发按钮的 `mouseleave` → `scheduleInsertHide()` 260ms 后隐藏。若这期间另一个方向的按钮被显示出来，就会被这次定时器吞掉。现在 `showInsertAffordance()` 开头 `cancelInsertHide()`。

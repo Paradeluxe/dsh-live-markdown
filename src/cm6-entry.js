@@ -59,9 +59,11 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-row { left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) / 2); width: 64px; transform: translateX(-50%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
 .gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 50%; height: 64px; transform: translateY(-50%); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
-.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col,
+.gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table-col-handle { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); background: transparent; border-radius: 4px; opacity: 0; pointer-events: none; cursor: pointer; z-index: 2; transition: opacity .12s ease, color .12s ease, background-color .12s ease; }
-.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
+.gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-col-handle,
+.gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
 /* 行/列之间插入：悬停到行/列边界附近时出现一条指示线和一个「+」按钮 */
@@ -979,6 +981,8 @@ class TableWidget extends WidgetType {
       insertLine.style.display = 'none'
     }
     const showInsertAffordance = (kind, index, boundary, wrapperRect, tableRect) => {
+      // 从 + 按钮移到表格上时按钮会触发 mouseleave 并预约一次隐藏，这里取消它。
+      try { cancelInsertHide() } catch {}
       insertTarget = { kind, index }
       if (kind === 'row') {
         insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 16) + 'px'
@@ -1033,18 +1037,26 @@ class TableWidget extends WidgetType {
         for (const item of colBounds) if (Math.abs(item.x - event.clientX) < Math.abs(colPick.x - event.clientX)) colPick = item
         const rowDistance = Math.abs(rowPick.y - event.clientY)
         const colDistance = Math.abs(colPick.x - event.clientX)
-        // 鼠标在左侧留白时优先插入行，在上方留白时优先插入列。
-        const preferRow = event.clientX < tableRect.left
-        const preferCol = event.clientY < tableRect.top
-        if (rowDistance <= 8 && (preferRow || colDistance > 8)) {
+        const nearRow = rowDistance <= 8
+        const nearCol = colDistance <= 8
+        if (!nearRow && !nearCol) { hideInsertAffordance(); return }
+        // 鼠标同时接近行边界和列边界（单元格角落）时，以前两个条件互相排斥会导致什么都不显示。
+        // 现在按「离哪条更近」二选一：留白处按方向优先，距离相同则按更近的轴。
+        let kind
+        if (nearRow && nearCol) {
+          if (event.clientX < tableRect.left) kind = 'row'
+          else if (event.clientY < tableRect.top) kind = 'col'
+          else kind = rowDistance <= colDistance ? 'row' : 'col'
+        } else {
+          kind = nearRow ? 'row' : 'col'
+        }
+        if (kind === 'row' && rowBounds.length === 0) kind = 'col'
+        if (kind === 'col' && colBounds.length === 0) kind = 'row'
+        if (kind === 'row') {
           showInsertAffordance('row', rowPick.index, rowPick.y, wrapperRect, tableRect)
           return
         }
-        if (colDistance <= 8 && (preferCol || rowDistance > 8)) {
-          showInsertAffordance('col', colPick.index, colPick.x, wrapperRect, tableRect)
-          return
-        }
-        hideInsertAffordance()
+        showInsertAffordance('col', colPick.index, colPick.x, wrapperRect, tableRect)
       } catch {
         hideInsertAffordance()
       }
@@ -1090,6 +1102,20 @@ class TableWidget extends WidgetType {
     insertButtonCol.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
     insertButtonRow.addEventListener('click', onInsertRowClick)
     insertButtonCol.addEventListener('click', onInsertColClick)
+    // widget 重建（表格编辑、撤销、重做）后鼠标通常没动，浏览器不会重新计算 :hover，
+    // 插入按钮也要等下一次 mousemove 才出现。这里用记录到的指针位置补一次同步。
+    const syncHoverFromPointer = () => {
+      try {
+        if (lastPointerX < 0 || lastPointerY < 0) return
+        const rect = wrapper.getBoundingClientRect()
+        if (rect.width === 0 || rect.height === 0) return
+        const inside = lastPointerX >= rect.left - 26 && lastPointerX <= rect.right + 6
+          && lastPointerY >= rect.top - 26 && lastPointerY <= rect.bottom + 6
+        wrapper.classList.toggle('is-hover', inside)
+        if (inside) onInsertHoverMove({ clientX: lastPointerX, clientY: lastPointerY, target: wrapper })
+      } catch {}
+    }
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(syncHoverFromPointer)
 
     const layoutHandles = () => {
       try {
@@ -3650,6 +3676,17 @@ function pastePlainTextCommand(view) {
     if (typeof text === 'string' && text !== '') view.dispatch(view.state.replaceSelection(text))
   }).catch(() => {})
   return true
+}
+
+/** 最近一次指针位置：widget 重建后用它恢复 hover 状态（重建后鼠标不动时 :hover 不会重新求值）。 */
+let lastPointerX = -1
+let lastPointerY = -1
+if (typeof document !== 'undefined' && document.__ghMdPointerTracked !== true) {
+  document.__ghMdPointerTracked = true
+  document.addEventListener('pointermove', (event) => {
+    lastPointerX = event.clientX
+    lastPointerY = event.clientY
+  }, { passive: true })
 }
 
 /** 为 true 时所有表格临时以源码态渲染（避免在 block widget 内部改文本）。 */

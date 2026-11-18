@@ -349,6 +349,19 @@ gui-table-insert-check.mjs (17 assertions) now also checks:
 
 Also re-ran: gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-add 13/13, gui-table-obsidian 55/55.
 
+## Hover affordances stay visible (1.1.25)
+
+Reproduced in the real GUI before the fix: hovering a cell corner (both distances <= 8px) showed nothing; after inserting a row with the mouse unmoved the insert button and both + pills disappeared (pill opacity 0); moving from the + button back onto the table hid the newly shown button 260 ms later (captured via a hide call stack pointing at the scheduled timeout).
+
+After the fix, the same probe shows:
+
+- row boundary hover shows the row button; after clicking it the table grows and the button is still visible without moving the mouse;
+- hovering the column boundary right after that shows the column button (was empty before);
+- the + pills stay at opacity 1 after the rebuild;
+- a cell corner shows one of the two buttons instead of none.
+
+gui-table-insert-check.mjs now has 20 assertions; gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-obsidian 55/55.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
