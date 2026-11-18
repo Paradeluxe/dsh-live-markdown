@@ -2543,3 +2543,18 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - 宿主历史回退加守卫 `hostHistoryAvailable()`：只有 `undoDepth === 0 && redoDepth === 0` 时才回退，避免在编辑器历史非空时整篇替换。
 - 撤销/重做改为 `Prec.highest(EditorView.domEventHandlers({ keydown }))`：CM6 的 keymap 对字母键忽略 Shift，`Mod-z` 会匹配 Ctrl+Shift+Z；没有可重做内容时会掉到 undo 上。DOM 处理器先拦截并 `preventDefault`，`undoWithFallback`/`redoWithFallback` 始终返回 true，阻止继续匹配。
 - 单元格（contenteditable）的 `keydown` 里转发 Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z 给编辑器，避免浏览器只撤销格子 DOM 文本。
+
+---
+
+## 147. v1.1.22：样式表热更新与「神秘加号」
+
+现象：表格下方出现两个竖排 `+`。排查：DOM 里这两个节点是 `.gh-md-cm6-table-insert-btn`（1.1.20 加的插入按钮），但 `position` 是 `static`、`display` 是 `block` —— 说明样式表里没有对应规则。
+
+根因：`ensureStyle()` 用固定 `STYLE_ID` 判重，`document.getElementById(STYLE_ID) !== null` 就直接 return。插件是热更新的（client.js 变了会重新注入），页面不刷新，于是样式表停留在旧版本；新组件只有 DOM 没有 CSS，`div` 按默认流式布局渲染成两行 `+`。
+
+修复：
+
+- `ensureStyle()`：已存在但 `textContent !== CSS` 时替换内容；
+- 插入按钮与指示线创建时写内联 `display: none`，`showInsertAffordance`/`hideInsertAffordance` 同步写内联 `display`。这样即使样式表再次过期，按钮也不会以纯文本形式出现（最坏情况只是 hover 时位置不对）。
+
+验证：删掉样式表里的插入按钮规则后，两个按钮仍是 `display: none`（内联），页面上没有任何可见的 `+` 节点。

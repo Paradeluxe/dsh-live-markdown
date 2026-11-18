@@ -949,16 +949,19 @@ class TableWidget extends WidgetType {
     })
     const insertButtonRow = document.createElement('div')
     insertButtonRow.className = 'gh-md-cm6-table-insert-btn is-row'
+    insertButtonRow.style.display = 'none'
     insertButtonRow.textContent = '+'
     insertButtonRow.title = '在这里插入一行'
     insertButtonRow.setAttribute('role', 'button')
     const insertButtonCol = document.createElement('div')
     insertButtonCol.className = 'gh-md-cm6-table-insert-btn is-col'
+    insertButtonCol.style.display = 'none'
     insertButtonCol.textContent = '+'
     insertButtonCol.title = '在这里插入一列'
     insertButtonCol.setAttribute('role', 'button')
     const insertLine = document.createElement('div')
     insertLine.className = 'gh-md-cm6-table-insert-line'
+    insertLine.style.display = 'none'
     wrapper.appendChild(insertLine)
     wrapper.appendChild(insertButtonRow)
     wrapper.appendChild(insertButtonCol)
@@ -970,6 +973,9 @@ class TableWidget extends WidgetType {
       insertButtonRow.classList.remove('is-visible')
       insertButtonCol.classList.remove('is-visible')
       insertLine.classList.remove('is-visible')
+      insertButtonRow.style.display = 'none'
+      insertButtonCol.style.display = 'none'
+      insertLine.style.display = 'none'
     }
     const showInsertAffordance = (kind, index, boundary, wrapperRect, tableRect) => {
       insertTarget = { kind, index }
@@ -977,7 +983,9 @@ class TableWidget extends WidgetType {
         insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 17) + 'px'
         insertButtonRow.style.top = (boundary - wrapperRect.top - 7.5) + 'px'
         insertButtonCol.classList.remove('is-visible')
+        insertButtonCol.style.display = 'none'
         insertButtonRow.classList.add('is-visible')
+        insertButtonRow.style.display = 'flex'
         insertLine.style.left = (tableRect.left - wrapperRect.left) + 'px'
         insertLine.style.top = (boundary - wrapperRect.top - 1) + 'px'
         insertLine.style.width = tableRect.width + 'px'
@@ -986,13 +994,16 @@ class TableWidget extends WidgetType {
         insertButtonCol.style.left = (boundary - wrapperRect.left - 7.5) + 'px'
         insertButtonCol.style.top = (tableRect.top - wrapperRect.top - 17) + 'px'
         insertButtonRow.classList.remove('is-visible')
+        insertButtonRow.style.display = 'none'
         insertButtonCol.classList.add('is-visible')
+        insertButtonCol.style.display = 'flex'
         insertLine.style.left = (boundary - wrapperRect.left - 1) + 'px'
         insertLine.style.top = (tableRect.top - wrapperRect.top) + 'px'
         insertLine.style.width = '2px'
         insertLine.style.height = tableRect.height + 'px'
       }
       insertLine.classList.add('is-visible')
+      insertLine.style.display = 'block'
     }
     // 悬停到行/列边界附近（±8px）时显示插入指示；离开表格区域后隐藏。
     const onInsertHoverMove = (event) => {
@@ -3779,7 +3790,13 @@ const editingKeymap = [
 
 function ensureStyle() {
   if (typeof document === 'undefined') return
-  if (document.getElementById(STYLE_ID) !== null) return
+  const existing = document.getElementById(STYLE_ID)
+  if (existing !== null) {
+    // 插件热更新时页面不会刷新：如果样式表还是旧版本的，必须替换内容，
+    // 否则新加的组件（例如表格行/列之间的插入按钮）会以无样式的纯文本渲染。
+    if (existing.textContent !== CSS) existing.textContent = CSS
+    return
+  }
   const style = document.createElement('style')
   style.id = STYLE_ID
   style.textContent = CSS

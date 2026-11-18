@@ -320,6 +320,16 @@ gui-undo-check.mjs (12 assertions):
 - the table is never duplicated by the history fallback;
 - zero page errors.
 
+## Stale stylesheet / stray plus signs (1.1.22)
+
+Reproduction: after a plugin hot-update the page keeps the previous <style> element (ensureStyle used to bail out on the id alone), so components added in a newer version have no CSS. The insert-row/insert-column buttons from 1.1.20 rendered as two plain "+" lines below the table.
+
+Verified in the real GUI:
+
+- the stylesheet now contains the insert rules on a fresh load (style id gh-md-cm6-lp-style);
+- after deleting every insert-button rule from the live stylesheet, both buttons still compute to display:none (inline) and no visible + node remains;
+- gui-table-insert-check 9/9, gui-table-click-edge 6/6, gui-undo-check 12/12 still pass.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
