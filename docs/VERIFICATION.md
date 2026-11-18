@@ -296,6 +296,17 @@ Fixtures: mixed CJK/ASCII (`| 名称 | note | 値 |` with `😀 emoji`), inline 
 
 The one real difference found: Obsidian preserves an explicit `:---` left-alignment marker (`:----` in the copied separator), while the plugin normalised it to `-----`. Alignment parsing now distinguishes `---` from `:---`; rendering looks identical and copying writes the original marker. Four of the fixtures are now permanent assertions in gui-table-obsidian-check.mjs (55 assertions total).
 
+## Insert between rows/columns (1.1.20)
+
+gui-table-insert-check.mjs (9 assertions):
+
+- hovering the middle of a row shows neither the + button nor the insert line;
+- hovering the boundary between two rows shows the + button (17x17 in the left gutter) and a 2px insert line spanning the table;
+- clicking the + inserts an empty row exactly at that boundary (a1 stays above, a2 moves below);
+- hovering a column boundary shows the column + and clicking it inserts an empty column between A and B, extending the separator row;
+- the right-click 行 ▸ 在上方新增行 path still inserts a row;
+- zero page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

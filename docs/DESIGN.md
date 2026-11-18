@@ -2510,3 +2510,22 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 **修掉的差异**：Obsidian 把 `:---` 视为「左对齐 + 显式冒号」，复制时写回 `:---`（冒号 + `width-1` 个破折号）；插件原先把它归一化成 `---`。
 
 实现：`parseAlignmentsFromLines()` 返回 `left` / `left-colon` / `center` / `right`；新增 `displayAlignment()` 把 `left-colon` 映射成视觉 `left`（`th/td` 渲染、`updateDOM` 都用它）；`formatSeparatorCell()` 增加 `left-colon → 冒号 + width-1 个破折号`；`padAligned()` 的 `left-colon` 走左对齐填充；HTML 序列化的 `styleAt` 只对 center/right 写 style。
+
+---
+
+## 145. v1.1.20：行/列边界插入
+
+需求：表格下方/右侧的 `+` 只能追加，中间插入要开右键菜单，不好发现。
+
+实现：
+
+- `insertButtonRow` / `insertButtonCol` / `insertLine` 三个绝对定位元素挂在 table wrapper 上；
+- **wrapper 级** `mousemove`（不能用 document 捕获阶段：那会干扰 CM6 对 widget 内点击的忽略判断，实测点击表格下方会把光标错误地放进表格）`onInsertHoverMove()`：指针进入「表格 + 左侧 26px + 上方 26px」的区域后，计算最近的行边界（`tr` 的 top，最后一行取 bottom）与列边界（表头 `th` 的 left，最后一列取 right）；距离 ≤ 8px 才显示；
+- `hideInsertAffordance()` 在「本来就没显示」时直接返回、不写 DOM：mousemove 里做无谓的 `classList.remove` 会制造样式失效，同样会让 CM6 误判点击归属；
+- 按钮在 wrapper 盒子之外，所以用 260ms 的延时隐藏 + 按钮 `mouseenter` 取消，保证「从表格移过去点 +」不会被提前隐藏；
+- 左侧留白优先插入行、上方留白优先插入列（避免角落处两个按钮打架）；
+- 行按钮放在左侧 16px 留白（`tableRect.left - wrapperRect.left - 17`），列按钮放在上方 16px 留白（`tableRect.top - wrapperRect.top - 17`）；指示线为 2px 蓝色，行方向横跨表格宽度、列方向纵跨表格高度；
+- 点击走 `insertRowAt(index)`（`index ≥ 1`，插到该行之前；`index === 行数` 即末尾）与 `insertColumnAt(index)`（`0..列数`），都通过 `applyEdit` 提交，和菜单/拖拽共用同一条编辑路径；
+- `__ghMdTableCleanup` 里移除 document 监听，避免 widget 重建后残留。
+
+不干扰原有交互：行中间/列中部不显示按钮；拖拽中（`dragState`/`cellDrag`）不显示；指针离开区域即隐藏。

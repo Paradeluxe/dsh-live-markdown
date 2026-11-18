@@ -64,6 +64,12 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
+/* 行/列之间插入：悬停到行/列边界附近时出现一条指示线和一个「+」按钮 */
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: none; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #ffffff); border: .5px solid var(--dsw-alias-border-l2, #d0d7de); box-shadow: 0 1px 3px rgb(0 0 0 / 14%); color: var(--dsw-alias-label-secondary, #57606a); font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; z-index: 5; user-select: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn.is-visible { display: flex; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn:hover { color: #ffffff; background: var(--dsw-alias-state-info-primary, #0969da); border-color: transparent; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-line { position: absolute; display: none; background: var(--dsw-alias-state-info-primary, #0969da); border-radius: 1px; z-index: 3; pointer-events: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-line.is-visible { display: block; }
 .gh-md-cm6-lp .gh-md-cm6-table .gh-md-cm6-table-cell-selected { background: rgb(9 105 218 / 10%) !important; }
 .gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting { user-select: none; }
 .gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting th, .gh-md-cm6-lp .gh-md-cm6-table.is-cell-selecting td { user-select: none; }
@@ -926,6 +932,150 @@ class TableWidget extends WidgetType {
       return applied
     }
 
+    // 在指定位置插入空行/空列（用于「悬停行/列边界 → +」）。
+    const insertRowAt = (index) => applyEdit((rows) => {
+      const at = Math.max(1, Math.min(index, rows.length))
+      rows.splice(at, 0, new Array((rows[0] ?? []).length).fill(''))
+      return true
+    })
+    const insertColumnAt = (index) => applyEdit((rows, separator) => {
+      const width = (rows[0] ?? []).length
+      const at = Math.max(0, Math.min(index, width))
+      for (const row of rows) row.splice(at, 0, '')
+      separator.splice(at, 0, '---')
+      return true
+    })
+    const insertButtonRow = document.createElement('div')
+    insertButtonRow.className = 'gh-md-cm6-table-insert-btn is-row'
+    insertButtonRow.textContent = '+'
+    insertButtonRow.title = '在这里插入一行'
+    insertButtonRow.setAttribute('role', 'button')
+    const insertButtonCol = document.createElement('div')
+    insertButtonCol.className = 'gh-md-cm6-table-insert-btn is-col'
+    insertButtonCol.textContent = '+'
+    insertButtonCol.title = '在这里插入一列'
+    insertButtonCol.setAttribute('role', 'button')
+    const insertLine = document.createElement('div')
+    insertLine.className = 'gh-md-cm6-table-insert-line'
+    wrapper.appendChild(insertLine)
+    wrapper.appendChild(insertButtonRow)
+    wrapper.appendChild(insertButtonCol)
+    let insertTarget = null
+    const hideInsertAffordance = () => {
+      // 已经隐藏时不再做任何 DOM 写入：避免在 CM6 处理点击前制造无谓的样式失效。
+      if (insertTarget === null && !insertButtonRow.classList.contains('is-visible') && !insertButtonCol.classList.contains('is-visible') && !insertLine.classList.contains('is-visible')) return
+      insertTarget = null
+      insertButtonRow.classList.remove('is-visible')
+      insertButtonCol.classList.remove('is-visible')
+      insertLine.classList.remove('is-visible')
+    }
+    const showInsertAffordance = (kind, index, boundary, wrapperRect, tableRect) => {
+      insertTarget = { kind, index }
+      if (kind === 'row') {
+        insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 17) + 'px'
+        insertButtonRow.style.top = (boundary - wrapperRect.top - 7.5) + 'px'
+        insertButtonCol.classList.remove('is-visible')
+        insertButtonRow.classList.add('is-visible')
+        insertLine.style.left = (tableRect.left - wrapperRect.left) + 'px'
+        insertLine.style.top = (boundary - wrapperRect.top - 1) + 'px'
+        insertLine.style.width = tableRect.width + 'px'
+        insertLine.style.height = '2px'
+      } else {
+        insertButtonCol.style.left = (boundary - wrapperRect.left - 7.5) + 'px'
+        insertButtonCol.style.top = (tableRect.top - wrapperRect.top - 17) + 'px'
+        insertButtonRow.classList.remove('is-visible')
+        insertButtonCol.classList.add('is-visible')
+        insertLine.style.left = (boundary - wrapperRect.left - 1) + 'px'
+        insertLine.style.top = (tableRect.top - wrapperRect.top) + 'px'
+        insertLine.style.width = '2px'
+        insertLine.style.height = tableRect.height + 'px'
+      }
+      insertLine.classList.add('is-visible')
+    }
+    // 悬停到行/列边界附近（±8px）时显示插入指示；离开表格区域后隐藏。
+    const onInsertHoverMove = (event) => {
+      try {
+        if (event.target === insertButtonRow || event.target === insertButtonCol) return
+        if (dragState !== null || cellDrag !== null) { hideInsertAffordance(); return }
+        const wrapperRect = wrapper.getBoundingClientRect()
+        const tableRect = table.getBoundingClientRect()
+        if (tableRect.width === 0 || tableRect.height === 0) { hideInsertAffordance(); return }
+        const inZone = event.clientX >= tableRect.left - 26 && event.clientX <= tableRect.right + 6
+          && event.clientY >= tableRect.top - 26 && event.clientY <= tableRect.bottom + 6
+        if (!inZone) { hideInsertAffordance(); return }
+        const rowNodes = Array.from(table.querySelectorAll('tr'))
+        const headerCells = Array.from(table.querySelectorAll('thead tr:first-child th'))
+        if (rowNodes.length === 0 || headerCells.length === 0) { hideInsertAffordance(); return }
+        const rowBounds = []
+        for (let index = 1; index < rowNodes.length; index += 1) rowBounds.push({ index, y: rowNodes[index].getBoundingClientRect().top })
+        rowBounds.push({ index: rowNodes.length, y: rowNodes[rowNodes.length - 1].getBoundingClientRect().bottom })
+        const colBounds = []
+        for (let index = 0; index < headerCells.length; index += 1) colBounds.push({ index, x: headerCells[index].getBoundingClientRect().left })
+        colBounds.push({ index: headerCells.length, x: headerCells[headerCells.length - 1].getBoundingClientRect().right })
+        let rowPick = rowBounds[0]
+        for (const item of rowBounds) if (Math.abs(item.y - event.clientY) < Math.abs(rowPick.y - event.clientY)) rowPick = item
+        let colPick = colBounds[0]
+        for (const item of colBounds) if (Math.abs(item.x - event.clientX) < Math.abs(colPick.x - event.clientX)) colPick = item
+        const rowDistance = Math.abs(rowPick.y - event.clientY)
+        const colDistance = Math.abs(colPick.x - event.clientX)
+        // 鼠标在左侧留白时优先插入行，在上方留白时优先插入列。
+        const preferRow = event.clientX < tableRect.left
+        const preferCol = event.clientY < tableRect.top
+        if (rowDistance <= 8 && (preferRow || colDistance > 8)) {
+          showInsertAffordance('row', rowPick.index, rowPick.y, wrapperRect, tableRect)
+          return
+        }
+        if (colDistance <= 8 && (preferCol || rowDistance > 8)) {
+          showInsertAffordance('col', colPick.index, colPick.x, wrapperRect, tableRect)
+          return
+        }
+        hideInsertAffordance()
+      } catch {
+        hideInsertAffordance()
+      }
+    }
+    // 用 wrapper 级 mousemove（不要用 document 捕获阶段：会干扰 CM6 对 widget 内点击的忽略判断）。
+    let insertHideTimer = null
+    const cancelInsertHide = () => {
+      if (insertHideTimer !== null) {
+        window.clearTimeout(insertHideTimer)
+        insertHideTimer = null
+      }
+    }
+    const scheduleInsertHide = () => {
+      cancelInsertHide()
+      insertHideTimer = window.setTimeout(() => {
+        insertHideTimer = null
+        hideInsertAffordance()
+      }, 260)
+    }
+    wrapper.addEventListener('mousemove', onInsertHoverMove)
+    wrapper.addEventListener('mouseleave', scheduleInsertHide)
+    insertButtonRow.addEventListener('mouseenter', cancelInsertHide)
+    insertButtonCol.addEventListener('mouseenter', cancelInsertHide)
+    insertButtonRow.addEventListener('mouseleave', scheduleInsertHide)
+    insertButtonCol.addEventListener('mouseleave', scheduleInsertHide)
+    const onInsertRowClick = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (insertTarget === null || insertTarget.kind !== 'row') return
+      const index = insertTarget.index
+      hideInsertAffordance()
+      insertRowAt(index)
+    }
+    const onInsertColClick = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (insertTarget === null || insertTarget.kind !== 'col') return
+      const index = insertTarget.index
+      hideInsertAffordance()
+      insertColumnAt(index)
+    }
+    insertButtonRow.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+    insertButtonCol.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+    insertButtonRow.addEventListener('click', onInsertRowClick)
+    insertButtonCol.addEventListener('click', onInsertColClick)
+
     const layoutHandles = () => {
       try {
         const wrapperRect = wrapper.getBoundingClientRect()
@@ -1442,6 +1592,8 @@ class TableWidget extends WidgetType {
     document.addEventListener('mouseup', onDocumentMouseUp)
     document.addEventListener('selectstart', onDocumentSelectStart)
     wrapper.__ghMdTableCleanup = () => {
+      wrapper.removeEventListener('mousemove', onInsertHoverMove)
+      if (insertHideTimer !== null) { window.clearTimeout(insertHideTimer); insertHideTimer = null }
       document.removeEventListener('mouseup', onDocumentMouseUp)
       document.removeEventListener('selectstart', onDocumentSelectStart)
       window.removeEventListener('keydown', onWindowKeyDown, true)
