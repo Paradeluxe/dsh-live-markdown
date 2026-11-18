@@ -2558,3 +2558,17 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - 插入按钮与指示线创建时写内联 `display: none`，`showInsertAffordance`/`hideInsertAffordance` 同步写内联 `display`。这样即使样式表再次过期，按钮也不会以纯文本形式出现（最坏情况只是 hover 时位置不对）。
 
 验证：删掉样式表里的插入按钮规则后，两个按钮仍是 `display: none`（内联），页面上没有任何可见的 `+` 节点。
+
+---
+
+## 148. v1.1.23：插入按钮与边界线的像素级对齐
+
+问题：插入按钮看起来没有居中在蓝色指示线上。原因是 `width: 15px` 用的是 content-box，再加 1px 边框后实际 17px，而定位按 15px 的一半算，中心偏右 1px；同时 `+` 是文字，字体基线和字面宽度会让它在按钮里看起来偏一点。
+
+修复：
+
+- `.gh-md-cm6-table-insert-btn` 改为 `box-sizing: border-box; width/height: 16px; border: 1px`，几何中心可精确计算；
+- 按钮内容改成 10×10 的 SVG 加号（`viewBox="0 0 10 10"`，两条 1.4 宽的圆头线），不再受字体影响；
+- 列按钮：`left = 边界 - 8`、`top = 表格顶 - 16` → 中心 = 边界，底边贴表格顶；行按钮：`top = 边界 - 8`、`left = 表格左 - 16` → 中心 = 边界，右边贴表格左。
+
+验证（deviceScaleFactor: 2 的真 GUI 测量）：列按钮中心 − 边界 = 0.00px，行按钮中心 − 行边界 = 0.00px，按钮底边 − 表格顶 = 0.00px，SVG 中心与按钮中心一致。

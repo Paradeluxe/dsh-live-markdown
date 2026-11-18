@@ -330,6 +330,15 @@ Verified in the real GUI:
 - after deleting every insert-button rule from the live stylesheet, both buttons still compute to display:none (inline) and no visible + node remains;
 - gui-table-insert-check 9/9, gui-table-click-edge 6/6, gui-undo-check 12/12 still pass.
 
+## Insert button centring (1.1.23)
+
+Measured in the real GUI with deviceScaleFactor 2 (getBoundingClientRect, two decimals):
+
+- column insert button: centre 861.50 vs column boundary 861.50 (0.00px offset); bottom edge 183.06 vs table top 183.06 (0.00px);
+- insert line: centre 861.50, width 2px, spanning the table height;
+- SVG plus inside the button: centre equals the button centre;
+- row insert button: centreY equals the row boundary (0.00px) and its right edge equals the table left edge (0.00px).
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

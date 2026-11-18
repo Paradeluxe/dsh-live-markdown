@@ -65,7 +65,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
 /* 行/列之间插入：悬停到行/列边界附近时出现一条指示线和一个「+」按钮 */
-.gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: none; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #ffffff); border: .5px solid var(--dsw-alias-border-l2, #d0d7de); box-shadow: 0 1px 3px rgb(0 0 0 / 14%); color: var(--dsw-alias-label-secondary, #57606a); font-size: 13px; font-weight: 600; line-height: 1; cursor: pointer; z-index: 5; user-select: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: none; align-items: center; justify-content: center; box-sizing: border-box; width: 16px; height: 16px; padding: 0; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #ffffff); border: 1px solid var(--dsw-alias-border-l2, #d0d7de); box-shadow: 0 1px 3px rgb(0 0 0 / 14%); color: var(--dsw-alias-label-secondary, #57606a); cursor: pointer; z-index: 5; user-select: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn svg { display: block; width: 10px; height: 10px; pointer-events: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-btn.is-visible { display: flex; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-btn:hover { color: #ffffff; background: var(--dsw-alias-state-info-primary, #0969da); border-color: transparent; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-line { position: absolute; display: none; background: var(--dsw-alias-state-info-primary, #0969da); border-radius: 1px; z-index: 3; pointer-events: none; }
@@ -950,13 +951,13 @@ class TableWidget extends WidgetType {
     const insertButtonRow = document.createElement('div')
     insertButtonRow.className = 'gh-md-cm6-table-insert-btn is-row'
     insertButtonRow.style.display = 'none'
-    insertButtonRow.textContent = '+'
+    insertButtonRow.innerHTML = `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.2v7.6M1.2 5h7.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
     insertButtonRow.title = '在这里插入一行'
     insertButtonRow.setAttribute('role', 'button')
     const insertButtonCol = document.createElement('div')
     insertButtonCol.className = 'gh-md-cm6-table-insert-btn is-col'
     insertButtonCol.style.display = 'none'
-    insertButtonCol.textContent = '+'
+    insertButtonCol.innerHTML = `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.2v7.6M1.2 5h7.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
     insertButtonCol.title = '在这里插入一列'
     insertButtonCol.setAttribute('role', 'button')
     const insertLine = document.createElement('div')
@@ -980,8 +981,8 @@ class TableWidget extends WidgetType {
     const showInsertAffordance = (kind, index, boundary, wrapperRect, tableRect) => {
       insertTarget = { kind, index }
       if (kind === 'row') {
-        insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 17) + 'px'
-        insertButtonRow.style.top = (boundary - wrapperRect.top - 7.5) + 'px'
+        insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 16) + 'px'
+        insertButtonRow.style.top = (boundary - wrapperRect.top - 8) + 'px'
         insertButtonCol.classList.remove('is-visible')
         insertButtonCol.style.display = 'none'
         insertButtonRow.classList.add('is-visible')
@@ -991,8 +992,8 @@ class TableWidget extends WidgetType {
         insertLine.style.width = tableRect.width + 'px'
         insertLine.style.height = '2px'
       } else {
-        insertButtonCol.style.left = (boundary - wrapperRect.left - 7.5) + 'px'
-        insertButtonCol.style.top = (tableRect.top - wrapperRect.top - 17) + 'px'
+        insertButtonCol.style.left = (boundary - wrapperRect.left - 8) + 'px'
+        insertButtonCol.style.top = (tableRect.top - wrapperRect.top - 16) + 'px'
         insertButtonRow.classList.remove('is-visible')
         insertButtonRow.style.display = 'none'
         insertButtonCol.classList.add('is-visible')
