@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.1.27'
+      const BUILD_STAMP = '1.2.0'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -4047,3 +4047,157 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
     },
   })
 })()
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 新版本提示：/github-md/update/check 由 Host 半边请求 GitHub（浏览器侧有 CORS 限制）。
+ * 有新版本时右下角出现一个小条：更新 / 说明 / 关闭。关闭会把版本记到 localStorage，
+ * 同一个版本不再打扰；出新版本会再次出现。
+ * ───────────────────────────────────────────────────────────────────────────── */
+;(() => {
+  const SKIP_KEY = 'github-md:update-skipped'
+  const STYLE_ID = 'gh-md-update-style'
+  const PILL_ID = 'gh-md-update-pill'
+
+  function readSkipped() {
+    try { return window.localStorage.getItem(SKIP_KEY) ?? '' } catch { return '' }
+  }
+  function writeSkipped(version) {
+    try { window.localStorage.setItem(SKIP_KEY, String(version)) } catch {}
+  }
+
+  function ensureStyle() {
+    if (document.getElementById(STYLE_ID) !== null) return
+    const style = document.createElement('style')
+    style.id = STYLE_ID
+    style.textContent = [
+      '#gh-md-update-pill{position:fixed;left:18px;bottom:18px;z-index:2147483000;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff);border:.5px solid var(--dsw-alias-border-l2,#d0d7de);box-shadow:0 6px 24px rgb(0 0 0 / 14%);font:13px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--dsw-alias-label-primary,#1f2328);max-width:min(420px,calc(100vw - 36px));}',
+      '#gh-md-update-pill .gh-md-update-dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--dsw-alias-state-info-primary,#0969da);color:#fff;font-size:11px;font-weight:700;flex:none;}',
+      '#gh-md-update-pill .gh-md-update-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+      '#gh-md-update-pill button{appearance:none;border:.5px solid var(--dsw-alias-border-l2,#d0d7de);background:transparent;color:inherit;font:inherit;font-size:12px;padding:3px 8px;border-radius:6px;cursor:pointer;flex:none;}',
+      '#gh-md-update-pill button:hover{background:var(--dsw-alias-interactive-bg-hover,rgb(0 0 0 / 6%));}',
+      '#gh-md-update-pill button.gh-md-update-apply{background:var(--dsw-alias-state-info-primary,#0969da);border-color:transparent;color:#fff;}',
+      '#gh-md-update-pill button.gh-md-update-apply:hover{filter:brightness(1.05);}',
+      '#gh-md-update-pill button.gh-md-update-apply[disabled]{opacity:.6;cursor:default;}',
+      '#gh-md-update-pill button.gh-md-update-skip{border-color:transparent;padding:3px 6px;font-size:14px;line-height:1;color:var(--dsw-alias-label-tertiary,#8c959f);}',
+    ].join('\n')
+    document.head.appendChild(style)
+  }
+
+  function removePill() {
+    const existing = document.getElementById(PILL_ID)
+    if (existing !== null) existing.remove()
+  }
+
+  function renderPill(info) {
+    if (document.getElementById(PILL_ID) !== null) return
+    ensureStyle()
+    const pill = document.createElement('div')
+    pill.id = PILL_ID
+    pill.setAttribute('role', 'status')
+
+    const dot = document.createElement('span')
+    dot.className = 'gh-md-update-dot'
+    dot.textContent = '↑'
+
+    const label = document.createElement('span')
+    label.className = 'gh-md-update-text'
+    label.textContent = '有新版本 v' + info.latest + '（当前 v' + info.current + '）'
+
+    const applyButton = document.createElement('button')
+    applyButton.type = 'button'
+    applyButton.className = 'gh-md-update-apply'
+    applyButton.textContent = info.installKind === 'git' ? '更新' : '下载'
+    applyButton.title = info.installKind === 'git' ? 'git pull 到最新版本，重启 DSH 后生效' : '打开发布页下载新版本'
+
+    const notesButton = document.createElement('button')
+    notesButton.type = 'button'
+    notesButton.className = 'gh-md-update-notes'
+    notesButton.textContent = '说明'
+
+    const skipButton = document.createElement('button')
+    skipButton.type = 'button'
+    skipButton.className = 'gh-md-update-skip'
+    skipButton.textContent = '×'
+    skipButton.title = '这个版本不再提示'
+    skipButton.setAttribute('aria-label', '忽略这个版本')
+
+    const openRelease = () => {
+      const url = typeof info.url === 'string' && info.url !== '' ? info.url : 'https://github.com/Paradeluxe/dsh-live-markdown/releases/latest'
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+
+    notesButton.addEventListener('click', openRelease)
+    skipButton.addEventListener('click', () => {
+      writeSkipped(info.latest)
+      removePill()
+    })
+
+    applyButton.addEventListener('click', async () => {
+      if (info.installKind !== 'git') {
+        openRelease()
+        return
+      }
+      applyButton.disabled = true
+      applyButton.textContent = '更新中…'
+      label.textContent = '正在更新到 v' + info.latest + '…'
+      try {
+        const response = await fetch('/github-md/update/apply', { method: 'POST' })
+        const result = await response.json()
+        if (result.ok === true) {
+          label.textContent = '已更新到 v' + (result.to ?? info.latest) + '，重启 DSH 后生效'
+          applyButton.remove()
+          notesButton.remove()
+          skipButton.textContent = '×'
+        } else if (result.reason === 'manual') {
+          label.textContent = '需要手动下载新版本'
+          applyButton.remove()
+          notesButton.textContent = '下载'
+        } else {
+          label.textContent = '更新失败，请手动更新'
+          label.title = String(result.message ?? result.output ?? '')
+          applyButton.textContent = '重试'
+          applyButton.disabled = false
+        }
+      } catch (error) {
+        label.textContent = '更新失败，请手动更新'
+        label.title = String(error)
+        applyButton.textContent = '重试'
+        applyButton.disabled = false
+      }
+    })
+
+    pill.appendChild(dot)
+    pill.appendChild(label)
+    pill.appendChild(applyButton)
+    pill.appendChild(notesButton)
+    pill.appendChild(skipButton)
+    document.body.appendChild(pill)
+  }
+
+  async function checkForUpdate() {
+    try {
+      const response = await fetch('/github-md/update/check', { headers: { accept: 'application/json' } })
+      if (!response.ok) return null
+      const info = await response.json()
+      if (info === null || typeof info !== 'object') return null
+      if (info.hasUpdate !== true || typeof info.latest !== 'string') return info
+      if (readSkipped() === info.latest) return info
+      renderPill(info)
+      return info
+    } catch {
+      return null
+    }
+  }
+
+  window.__ghMdUpdate = { check: checkForUpdate, dismiss: removePill }
+
+  if (typeof document !== 'undefined' && /^https?:$/u.test(window.location.protocol)) {
+    const start = () => {
+      window.setTimeout(() => { void checkForUpdate() }, 1500)
+      // 长时间挂着的窗口也会看到新版本（Host 侧缓存 10 分钟，这里 4 小时查一次）。
+      window.setInterval(() => { void checkForUpdate() }, 4 * 60 * 60 * 1000)
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') start()
+    else window.addEventListener('DOMContentLoaded', start, { once: true })
+  }
+})()
+

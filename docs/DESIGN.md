@@ -2613,3 +2613,17 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 即按钮贴着表格右边/底边外侧，视口不够时夹在视口内。左侧与上方留白完全交还手柄；1.1.26 的 `.is-insert-adjacent` 隐藏逻辑随之删除（不再需要，也不该让手柄消失）。
 
 悬停判定区域相应放宽到表格四边 ±26px（按钮在表格外），并且**指针落在追加胶囊矩形（外扩 6px）内时直接隐藏插入指示**——否则两列表格底部居中的胶囊恰好落在列边界上，会弹出列插入按钮并把胶囊 `pointer-events: none` 掉，点不了。追加胶囊也改成「只有和按钮真正重叠时才藏」（`overlapsPill` 判断）。
+
+---
+
+## 153. v1.2.0：版本更新提示与一键更新
+
+**为什么放在 Host 半边**：浏览器里 fetch GitHub API 会受 CORS/网络环境影响，而 Host 进程直接 `node:https` 请求 `https://api.github.com/repos/Paradeluxe/dsh-live-markdown/releases/latest`，并用 `package.json` 的版本做比较——插件目录就是 `import.meta.url` 所在目录，宿主自己知道版本。
+
+**接口**：
+
+- `GET /github-md/update/check[?force=1]` → `{ current, latest, hasUpdate, url, notes, publishedAt, installKind, checkedAt, error }`；有 10 分钟内存缓存（GitHub 未认证 60 次/小时）；
+- `POST /github-md/update/apply` → git 安装执行 `git fetch --tags --prune` + `git pull --ff-only`（`windowsHide: true`，不弹窗口），返回 `{ ok, from, to, restartRequired, output }`；非 git 安装返回 `{ ok:false, reason:"manual", url }`；
+- 安装形态用 `<plugin>/.git` 是否存在判断。
+
+**前端**：`client.js` 末尾一个独立 IIFE（不依赖 React）：加载 1.5s 后 `fetch("/github-md/update/check")`，`hasUpdate` 且未被 `localStorage["github-md:update-skipped"]` 记录时，在左下角渲染 `#gh-md-update-pill`（圆点 + 文案 + 更新/说明/×）。更新按钮 POST apply：成功后文案改成「已更新到 vX，重启 DSH 后生效」；失败保留「重试」并把 stderr 放进 title；非 git 安装点按钮直接打开发布页。每 4 小时复查一次。`window.__ghMdUpdate` 暴露 check/dismiss 供测试使用。

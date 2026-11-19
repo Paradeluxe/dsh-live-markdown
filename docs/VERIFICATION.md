@@ -384,6 +384,20 @@ Measured in the real GUI at deviceScaleFactor 2 on a 7-row, 2-column table:
 
 Also verified the pill regression this exposed: hovering the bottom + pill used to raise a column affordance (two-column table puts the pill on the middle column boundary) and hide the pill, so clicking it added nothing. After the fix gui-table-click-edge (6/6), gui-undo-check (12/12) and gui-table-add (13/13) pass again; gui-table-insert-check is 25/25 and gui-table-obsidian 55/55.
 
+## Update notice (1.2.0)
+
+Host endpoint verified against the real GitHub API from the verify server: GET /github-md/update/check returned current=1.1.27, latest=1.1.27 (tag v1.1.27), hasUpdate=false, installKind=git, error=null.
+
+gui-update-check.mjs (10 assertions, routes mocked so no network is needed):
+
+- a newer release renders the pill with "new version v9.9.9 (current v1.1.27)" and the three buttons;
+- clicking Update posts to /github-md/update/apply and switches the text to "updated to v9.9.9, restart DSH to take effect";
+- dismissing stores the version in localStorage and the same version is not shown after a reload;
+- an up-to-date install renders no pill;
+- a copy install shows a Download button instead of Update;
+- the real host endpoint reports the installed version;
+- no page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

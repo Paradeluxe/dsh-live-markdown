@@ -5,7 +5,10 @@
  * 预览正文仍由官方文档预览加载器交给浏览器；工作台的文件操作只允许落在当前 Session 的
  * 工作区根目录内（路径 resolve 后做前缀校验，挡 `..` 与绝对路径逃逸），并限制读写大小。
  */
+import { execFile } from 'node:child_process'
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { get } from 'node:https'
+import { promisify } from 'node:util'
 import { dirname, extname, normalize, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -21,6 +24,17 @@ const VENDOR_DIR = fileURLToPath(new URL('./vendor/', import.meta.url))
 const ASSET_PREFIX = '/github-md/vendor/'
 /** 工作台 API 前缀。 */
 const WORKSPACE_PREFIX = '/github-md/workspace/'
+/** 版本检测 API 前缀。 */
+const UPDATE_PREFIX = '/github-md/update/'
+/** GitHub 仓库（owner/name）。 */
+const UPDATE_REPO = 'Paradeluxe/dsh-live-markdown'
+/** 版本检测结果缓存时长（GitHub 未认证接口限流 60 次/小时）。 */
+const UPDATE_CACHE_MS = 10 * 60 * 1000
+/** 插件安装目录（index.js 所在目录）。 */
+const PLUGIN_DIR = fileURLToPath(new URL('.', import.meta.url))
+/** 检测结果缓存。 */
+let updateCache = { at: 0, value: null }
+const execFileAsync = promisify(execFile)
 /** 单个 Markdown 文件读写上限。 */
 const MAX_TEXT_BYTES = 4 * 1024 * 1024
 /** 允许工作台打开/保存的扩展名。 */
@@ -339,6 +353,174 @@ async function serveWorkspaceApi(ctx, req, res, pathname, search) {
   }
 }
 
+/** 读取当前安装的插件版本（package.json）。 */
+async function readInstalledVersion() {
+  const raw = await readFile(new URL('./package.json', import.meta.url), 'utf8')
+  return String(JSON.parse(raw).version ?? '0.0.0')
+}
+
+/** 安装形态：git 仓库可以一键更新，其它（拷贝/解压）只能手动下载。 */
+async function detectInstallKind() {
+  try {
+    const info = await stat(resolvePath(PLUGIN_DIR, '.git'))
+    return info.isDirectory() ? 'git' : 'copy'
+  } catch {
+    return 'copy'
+  }
+}
+
+/** 把 'v1.2.3' / '1.2.3-beta.1' 解析成数字数组，用于比较。 */
+function parseVersion(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/u.exec(String(value ?? '').replace(/^v/u, ''))
+  return match === null ? null : [Number(match[1]), Number(match[2]), Number(match[3])]
+}
+
+/** 比较两个版本号：a > b 返回 1，相等 0，a < b 返回 -1。 */
+function compareVersions(a, b) {
+  const left = parseVersion(a)
+  const right = parseVersion(b)
+  if (left === null || right === null) return 0
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] > right[index] ? 1 : -1
+  }
+  return 0
+}
+
+/** 请求 GitHub 最新 release（无认证，带超时）。 */
+function fetchLatestRelease() {
+  return new Promise((resolve, reject) => {
+    const request = get({
+      hostname: 'api.github.com',
+      path: '/repos/' + UPDATE_REPO + '/releases/latest',
+      headers: {
+        'user-agent': 'dsh-live-markdown-updater',
+        accept: 'application/vnd.github+json',
+      },
+      timeout: 8000,
+    }, (response) => {
+      const chunks = []
+      response.on('data', (chunk) => chunks.push(chunk))
+      response.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8')
+        if (response.statusCode !== 200) {
+          reject(new Error('github-http-' + String(response.statusCode)))
+          return
+        }
+        try {
+          resolve(JSON.parse(body))
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error('bad-json'))
+        }
+      })
+    })
+    request.on('timeout', () => request.destroy(new Error('github-timeout')))
+    request.on('error', (error) => reject(error))
+  })
+}
+
+/**
+ * 检查是否有新版本。
+ * @param force - 是否忽略缓存。
+ * @returns 检测结果。
+ */
+async function checkForUpdate(force) {
+  const now = Date.now()
+  if (force !== true && updateCache.value !== null && now - updateCache.at < UPDATE_CACHE_MS) {
+    return updateCache.value
+  }
+  let current = '0.0.0'
+  try {
+    current = await readInstalledVersion()
+  } catch {}
+  const result = {
+    current,
+    latest: null,
+    hasUpdate: false,
+    url: 'https://github.com/' + UPDATE_REPO + '/releases/latest',
+    notes: '',
+    publishedAt: null,
+    installKind: await detectInstallKind(),
+    checkedAt: new Date().toISOString(),
+    error: null,
+  }
+  try {
+    const release = await fetchLatestRelease()
+    result.latest = String(release.tag_name ?? '').replace(/^v/u, '') || null
+    if (typeof release.html_url === 'string' && release.html_url !== '') result.url = release.html_url
+    if (typeof release.body === 'string') result.notes = release.body.slice(0, 4000)
+    if (typeof release.published_at === 'string') result.publishedAt = release.published_at
+    result.hasUpdate = result.latest !== null && compareVersions(result.latest, current) > 0
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : String(error)
+  }
+  updateCache = { at: now, value: result }
+  return result
+}
+
+/**
+ * 一键更新：git 安装走 `git pull --ff-only`，其它安装形态返回手动更新提示。
+ * @returns 更新结果。
+ */
+async function applyUpdate() {
+  const from = await readInstalledVersion().catch(() => null)
+  const kind = await detectInstallKind()
+  const url = 'https://github.com/' + UPDATE_REPO + '/releases/latest'
+  if (kind !== 'git') {
+    return { ok: false, reason: 'manual', from, url, message: '当前安装不是 git 仓库，请从发布页下载新版本覆盖安装。' }
+  }
+  try {
+    const fetched = await execFileAsync('git', ['-C', PLUGIN_DIR, 'fetch', '--tags', '--prune'], { timeout: 60000, windowsHide: true })
+    const pulled = await execFileAsync('git', ['-C', PLUGIN_DIR, 'pull', '--ff-only'], { timeout: 60000, windowsHide: true })
+    const to = await readInstalledVersion().catch(() => null)
+    updateCache = { at: 0, value: null }
+    return {
+      ok: true,
+      from,
+      to,
+      restartRequired: to !== from,
+      url,
+      output: (String(fetched.stdout ?? '') + String(pulled.stdout ?? '')).trim().slice(0, 2000),
+    }
+  } catch (error) {
+    const stdout = error !== null && error !== undefined && typeof error.stdout === 'string' ? error.stdout : ''
+    const stderr = error !== null && error !== undefined && typeof error.stderr === 'string' ? error.stderr : ''
+    return {
+      ok: false,
+      reason: 'git-failed',
+      from,
+      url,
+      message: error instanceof Error ? error.message : String(error),
+      output: (stdout + stderr).trim().slice(0, 3000),
+    }
+  }
+}
+
+/**
+ * 版本检测 / 一键更新 API。
+ * @param req - Node 请求。
+ * @param res - Node 应答。
+ * @param pathname - URL pathname。
+ * @param search - URL 查询参数。
+ * @returns 应答写完即返回。
+ */
+async function serveUpdateApi(req, res, pathname, search) {
+  const action = pathname.slice(UPDATE_PREFIX.length)
+  try {
+    if (action === 'check' && (req.method === 'GET' || req.method === 'HEAD')) {
+      const result = await checkForUpdate(search.get('force') === '1')
+      return sendJson(res, 200, result)
+    }
+    if (action === 'apply' && req.method === 'POST') {
+      const result = await applyUpdate()
+      return sendJson(res, 200, result)
+    }
+    res.statusCode = 405
+    res.end()
+  } catch (error) {
+    sendJson(res, 500, { error: 'failed', message: error instanceof Error ? error.message : String(error) })
+  }
+}
+
 /**
  * 启动插件。
  * @param ctx - Host 根上下文。
@@ -356,6 +538,10 @@ export function apply(ctx) {
       } catch {
         res.statusCode = 400
         res.end()
+        return
+      }
+      if (url.pathname.startsWith(UPDATE_PREFIX)) {
+        await serveUpdateApi(req, res, url.pathname, url.searchParams)
         return
       }
       if (url.pathname.startsWith(WORKSPACE_PREFIX)) {
