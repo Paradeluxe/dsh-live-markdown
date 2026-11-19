@@ -2590,3 +2590,11 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 **重建后 hover 不重算**：`applyEdit` 会重建整个 widget，新 DOM 上 `:hover` 要等下一次鼠标移动才生效，插入按钮也要等 mousemove。现在模块级记录 `lastPointerX/Y`（document `pointermove`，只写两个数字、不做 DOM 写入，避免之前那种干扰 CM6 点击判定的问题），`toDOM()` 末尾用 `requestAnimationFrame(syncHoverFromPointer)` 补一次：若指针仍在表格区域，给 wrapper 加 `.is-hover` 并调用一次 `onInsertHoverMove`。CSS 里胶囊与行/列手柄的显示条件都加上 `.is-hover` 版本。
 
 **按钮 mouseleave 抢跑**：按钮在 wrapper 盒子之外，从按钮移回表格会触发按钮的 `mouseleave` → `scheduleInsertHide()` 260ms 后隐藏。若这期间另一个方向的按钮被显示出来，就会被这次定时器吞掉。现在 `showInsertAffordance()` 开头 `cancelInsertHide()`。
+
+---
+
+## 151. v1.1.26：插入按钮与手柄的重叠、列边界 off-by-one
+
+**重叠**：行手柄的高度 = 整行高度（`height: rect.height`，图标居中），插入按钮 16px 居中在边界上。行高 30px 时手柄占据边界两侧各 9px，按钮占据两侧各 8px，二者必然重叠。做法：`showInsertAffordance()` 里调用 `markAdjacentHandles(kind, index)` 给「边界两侧的两个手柄」加 `.is-insert-adjacent`（CSS `opacity: 0 !important; pointer-events: none !important`），`hideInsertAffordance()` 里 `clearAdjacentHandles()`。行列同理。
+
+**列边界 off-by-one**：边界 `index` 表示「插到第 index 列之前」，合法范围 `0 .. cols-1`（`cols` 是表格右侧的追加位，1.1.24 已交给胶囊）。1.1.24 写成了 `index < headerCells.length - 1`，把 `cols-1`（最后两列之间）也排除了；两列表格因此只剩最左侧一条边界。改为 `index < headerCells.length`。

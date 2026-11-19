@@ -362,6 +362,18 @@ After the fix, the same probe shows:
 
 gui-table-insert-check.mjs now has 20 assertions; gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-obsidian 55/55.
 
+## Insert button vs handle overlap (1.1.26)
+
+Measured in the real GUI (deviceScaleFactor 2) on a 30px-row table:
+
+- hovering a row boundary: the + button is at (715,265) 16x16, the two row grips next to the boundary report opacity 0 and class is-insert-adjacent, and an intersection test against every visible grip returns 0 overlaps;
+- hovering a column boundary: the column + at (848,167) 16x16, both adjacent column grips hidden (opacity 0), 0 overlaps;
+- before the fix the same probe reported the button covering the lower half of the grip above the boundary in the screenshot.
+
+Also verified the column off-by-one: a two-column table now shows the column + when hovering the boundary between them (previously only the far-left boundary existed).
+
+gui-table-insert-check.mjs now has 24 assertions; gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-add 13/13, gui-table-obsidian 55/55.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
