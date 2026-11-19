@@ -2598,3 +2598,18 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 **重叠**：行手柄的高度 = 整行高度（`height: rect.height`，图标居中），插入按钮 16px 居中在边界上。行高 30px 时手柄占据边界两侧各 9px，按钮占据两侧各 8px，二者必然重叠。做法：`showInsertAffordance()` 里调用 `markAdjacentHandles(kind, index)` 给「边界两侧的两个手柄」加 `.is-insert-adjacent`（CSS `opacity: 0 !important; pointer-events: none !important`），`hideInsertAffordance()` 里 `clearAdjacentHandles()`。行列同理。
 
 **列边界 off-by-one**：边界 `index` 表示「插到第 index 列之前」，合法范围 `0 .. cols-1`（`cols` 是表格右侧的追加位，1.1.24 已交给胶囊）。1.1.24 写成了 `index < headerCells.length - 1`，把 `cols-1`（最后两列之间）也排除了；两列表格因此只剩最左侧一条边界。改为 `index < headerCells.length`。
+
+---
+
+## 152. v1.1.27：插入按钮移到表格外侧右侧/下方
+
+反馈：边界插入 `+` 在左侧留白里，正好压住行手柄，鼠标移到那里就选不中行（列边界同理，压住上方列手柄）。
+
+实现：`showInsertAffordance()` 不再把按钮放在 `tableRect.left - 16` / `tableRect.top - 16`，改成：
+
+- 行边界：`left = min(tableRect.right + 2, innerWidth - 20)`，`top = boundary - 8`；
+- 列边界：`top = min(tableRect.bottom + 2, innerHeight - 20)`，`left = boundary - 8`。
+
+即按钮贴着表格右边/底边外侧，视口不够时夹在视口内。左侧与上方留白完全交还手柄；1.1.26 的 `.is-insert-adjacent` 隐藏逻辑随之删除（不再需要，也不该让手柄消失）。
+
+悬停判定区域相应放宽到表格四边 ±26px（按钮在表格外），并且**指针落在追加胶囊矩形（外扩 6px）内时直接隐藏插入指示**——否则两列表格底部居中的胶囊恰好落在列边界上，会弹出列插入按钮并把胶囊 `pointer-events: none` 掉，点不了。追加胶囊也改成「只有和按钮真正重叠时才藏」（`overlapsPill` 判断）。

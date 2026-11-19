@@ -66,8 +66,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-col-handle { opacity: .85; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle:hover, .gh-md-cm6-lp .gh-md-cm6-table-col-handle:hover { opacity: 1; color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-interactive-bg-hover, rgb(0 0 0 / 5%)); }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-selected, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-selected { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); }
-/* 插入按钮在行/列边界上，会盖住紧挨着它的两个手柄；出现时把这两个手柄藏起来。 */
-.gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-insert-adjacent, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-insert-adjacent { opacity: 0 !important; pointer-events: none !important; }
+/* 插入指示显示时，底部/右侧的追加胶囊先收起来，免得和边界按钮叠在一起。 */
+.gh-md-cm6-lp .gh-md-cm6-table.is-insert-hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table.is-insert-hover .gh-md-cm6-table-add-col { opacity: 0 !important; pointer-events: none !important; }
 /* 行/列之间插入：悬停到行/列边界附近时出现一条指示线和一个「+」按钮 */
 .gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: none; align-items: center; justify-content: center; box-sizing: border-box; width: 16px; height: 16px; padding: 0; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #ffffff); border: 1px solid var(--dsw-alias-border-l2, #d0d7de); box-shadow: 0 1px 3px rgb(0 0 0 / 14%); color: var(--dsw-alias-label-secondary, #57606a); cursor: pointer; z-index: 5; user-select: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-btn svg { display: block; width: 10px; height: 10px; pointer-events: none; }
@@ -971,30 +971,11 @@ class TableWidget extends WidgetType {
     wrapper.appendChild(insertButtonRow)
     wrapper.appendChild(insertButtonCol)
     let insertTarget = null
-    // 隐藏紧挨着插入边界的那两个手柄，否则 + 会叠在手柄上。
-    const markAdjacentHandles = (kind, index) => {
-      try {
-        for (const handle of rowHandles) {
-          const handleIndex = Number(handle.dataset.index)
-          handle.classList.toggle('is-insert-adjacent', kind === 'row' && (handleIndex === index - 1 || handleIndex === index))
-        }
-        for (const handle of colHandles) {
-          const handleIndex = Number(handle.dataset.index)
-          handle.classList.toggle('is-insert-adjacent', kind === 'col' && (handleIndex === index - 1 || handleIndex === index))
-        }
-      } catch {}
-    }
-    const clearAdjacentHandles = () => {
-      try {
-        for (const handle of rowHandles) handle.classList.remove('is-insert-adjacent')
-        for (const handle of colHandles) handle.classList.remove('is-insert-adjacent')
-      } catch {}
-    }
     const hideInsertAffordance = () => {
       // 已经隐藏时不再做任何 DOM 写入：避免在 CM6 处理点击前制造无谓的样式失效。
       if (insertTarget === null && !insertButtonRow.classList.contains('is-visible') && !insertButtonCol.classList.contains('is-visible') && !insertLine.classList.contains('is-visible')) return
       insertTarget = null
-      clearAdjacentHandles()
+      wrapper.classList.remove('is-insert-hover')
       insertButtonRow.classList.remove('is-visible')
       insertButtonCol.classList.remove('is-visible')
       insertLine.classList.remove('is-visible')
@@ -1006,9 +987,15 @@ class TableWidget extends WidgetType {
       // 从 + 按钮移到表格上时按钮会触发 mouseleave 并预约一次隐藏，这里取消它。
       try { cancelInsertHide() } catch {}
       insertTarget = { kind, index }
-      markAdjacentHandles(kind, index)
+      // 按钮不再放在左侧/上方留白里（那里是行/列手柄，会挡住选择）：
+      // 行边界 → 蓝色横线的右端；列边界 → 蓝色竖线的下端。
+      // 表格比可见区域大时，把按钮夹在可见区域的右下角，避免跑到屏幕外。
+      // 按钮放在表格外侧：行 → 横线右端（表格右边外面），列 → 竖线下端（表格底边下面）；
+      // 表格超出视口时夹到视口内，保证点得到。
+      const rowButtonLeft = Math.min(tableRect.right + 2, window.innerWidth - 20)
+      const colButtonTop = Math.min(tableRect.bottom + 2, window.innerHeight - 20)
       if (kind === 'row') {
-        insertButtonRow.style.left = (tableRect.left - wrapperRect.left - 16) + 'px'
+        insertButtonRow.style.left = (rowButtonLeft - wrapperRect.left) + 'px'
         insertButtonRow.style.top = (boundary - wrapperRect.top - 8) + 'px'
         insertButtonCol.classList.remove('is-visible')
         insertButtonCol.style.display = 'none'
@@ -1020,7 +1007,7 @@ class TableWidget extends WidgetType {
         insertLine.style.height = '2px'
       } else {
         insertButtonCol.style.left = (boundary - wrapperRect.left - 8) + 'px'
-        insertButtonCol.style.top = (tableRect.top - wrapperRect.top - 16) + 'px'
+        insertButtonCol.style.top = (colButtonTop - wrapperRect.top) + 'px'
         insertButtonRow.classList.remove('is-visible')
         insertButtonRow.style.display = 'none'
         insertButtonCol.classList.add('is-visible')
@@ -1032,17 +1019,39 @@ class TableWidget extends WidgetType {
       }
       insertLine.classList.add('is-visible')
       insertLine.style.display = 'block'
+      // 只有按钮和追加胶囊真的重叠时才把胶囊收起来（否则鼠标悬停胶囊会被误判）。
+      const buttonLeft = kind === 'row' ? rowButtonLeft : boundary - 8
+      const buttonTop = kind === 'row' ? boundary - 8 : colButtonTop
+      const buttonRect = { left: buttonLeft, top: buttonTop, right: buttonLeft + 16, bottom: buttonTop + 16 }
+      let overlapsPill = false
+      for (const pill of [rowButton, colButton]) {
+        const pillRect = pill.getBoundingClientRect()
+        if (pillRect.width === 0) continue
+        if (buttonRect.left < pillRect.right + 2 && pillRect.left - 2 < buttonRect.right
+          && buttonRect.top < pillRect.bottom + 2 && pillRect.top - 2 < buttonRect.bottom) overlapsPill = true
+      }
+      wrapper.classList.toggle('is-insert-hover', overlapsPill)
     }
     // 悬停到行/列边界附近（±8px）时显示插入指示；离开表格区域后隐藏。
     const onInsertHoverMove = (event) => {
       try {
         if (event.target === insertButtonRow || event.target === insertButtonCol) return
+        // 鼠标停在底部/右侧的追加胶囊上时不要弹边界插入按钮：否则胶囊会被藏起来点不到。
+        for (const pill of [rowButton, colButton]) {
+          const pillRect = pill.getBoundingClientRect()
+          if (pillRect.width === 0) continue
+          if (event.clientX >= pillRect.left - 6 && event.clientX <= pillRect.right + 6
+            && event.clientY >= pillRect.top - 6 && event.clientY <= pillRect.bottom + 6) {
+            hideInsertAffordance()
+            return
+          }
+        }
         if (dragState !== null || cellDrag !== null) { hideInsertAffordance(); return }
         const wrapperRect = wrapper.getBoundingClientRect()
         const tableRect = table.getBoundingClientRect()
         if (tableRect.width === 0 || tableRect.height === 0) { hideInsertAffordance(); return }
-        const inZone = event.clientX >= tableRect.left - 26 && event.clientX <= tableRect.right + 6
-          && event.clientY >= tableRect.top - 26 && event.clientY <= tableRect.bottom + 6
+        const inZone = event.clientX >= tableRect.left - 26 && event.clientX <= tableRect.right + 26
+          && event.clientY >= tableRect.top - 26 && event.clientY <= tableRect.bottom + 26
         if (!inZone) { hideInsertAffordance(); return }
         const rowNodes = Array.from(table.querySelectorAll('tr'))
         const headerCells = Array.from(table.querySelectorAll('thead tr:first-child th'))
@@ -1134,8 +1143,8 @@ class TableWidget extends WidgetType {
         if (lastPointerX < 0 || lastPointerY < 0) return
         const rect = wrapper.getBoundingClientRect()
         if (rect.width === 0 || rect.height === 0) return
-        const inside = lastPointerX >= rect.left - 26 && lastPointerX <= rect.right + 6
-          && lastPointerY >= rect.top - 26 && lastPointerY <= rect.bottom + 6
+        const inside = lastPointerX >= rect.left - 26 && lastPointerX <= rect.right + 26
+          && lastPointerY >= rect.top - 26 && lastPointerY <= rect.bottom + 26
         wrapper.classList.toggle('is-hover', inside)
         if (inside) onInsertHoverMove({ clientX: lastPointerX, clientY: lastPointerY, target: wrapper })
       } catch {}

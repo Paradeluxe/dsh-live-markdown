@@ -374,6 +374,16 @@ Also verified the column off-by-one: a two-column table now shows the column + w
 
 gui-table-insert-check.mjs now has 24 assertions; gui-table-click-edge 6/6, gui-undo-check 12/12, gui-table-add 13/13, gui-table-obsidian 55/55.
 
+## Insert button placement (1.1.27)
+
+Measured in the real GUI at deviceScaleFactor 2 on a 7-row, 2-column table:
+
+- row boundary hover: + at (930,265) 16x16, i.e. 2px outside the table right edge (946 vs 948); 7/7 row grips still visible, intersection test against them = 0 overlaps;
+- column boundary hover: + at (848,375) 16x16, i.e. 2px above the table bottom edge (391 vs 393); column grips visible, 0 overlaps;
+- the centred grid line spans the table as before.
+
+Also verified the pill regression this exposed: hovering the bottom + pill used to raise a column affordance (two-column table puts the pill on the middle column boundary) and hide the pill, so clicking it added nothing. After the fix gui-table-click-edge (6/6), gui-undo-check (12/12) and gui-table-add (13/13) pass again; gui-table-insert-check is 25/25 and gui-table-obsidian 55/55.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
