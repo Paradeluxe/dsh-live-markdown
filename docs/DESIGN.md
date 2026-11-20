@@ -2677,3 +2677,21 @@ offsetX' = (cx - Vx) - ((cx - Vx) - offsetX) * ratio
 **问题二：最小 0.25x 没意义**。适配尺寸（1x）已经把整张图放进视口，比它还小只会让图缩成一小块、还带着偏移。`MIN_SCALE = 1`。
 
 **问题三：拖拽能把图拖出视口**。新增 `clampOffset()`：缩放后宽度 `W = offsetWidth * scale`，限制 `|offsetX| <= W/2`、`|offsetY| <= H/2`，即视口中心始终落在图片上；`applyTransform()` 每次都会 clamp，拖拽结束（`endDrag` 里已有 `applyTransform()`）也会自动弹回。
+
+---
+
+## 157. v1.3.3：放大变糊的根因（will-change 的合成层纹理）
+
+img 元素带 will-change: transform 时，Chromium 会为该元素建独立合成层：栅格化发生在层创建/尺寸变化时，transform 的缩放不会触发重新栅格化，于是拿「适配尺寸」的低分辨率纹理去放大 —— 显示尺寸还没到 naturalWidth 就已经糊。
+
+量化方法：2000×1125 的 2px 黑白竖条纹图，适配尺寸 1229 宽（max-width 96vw），滚轮放大 3 档到 1986 宽（≈原始像素），截取图片区域后统计「极值像素（亮度<30 或 >225）占比」：
+
+| 方案 | extremeRatio |
+| --- | --- |
+| 修复前 | 0.107 |
+| 去掉 will-change | 0.615 |
+| 改为按尺寸放大（width/height 直接设成缩放后像素，transform 只留 translate） | 0.566 |
+
+结论：去掉 will-change: transform 即可（Chromium 会按当前 transform 倍率重新栅格化）；保留 transform 缩放/平移。
+
+回归断言写进 gui-image-zoom-check.mjs：放大后截图 → canvas 统计 extremeRatio，要求 > 0.3（修复前 0.107 会失败）。

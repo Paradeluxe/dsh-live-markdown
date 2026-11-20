@@ -436,6 +436,16 @@ Measured in the real GUI with a 640x360 test image (gui-image-zoom-check.mjs, 14
 - dragging 3000 px keeps the viewport centre inside the image (pan clamp);
 - 0 resets, Escape closes, the wheel does not scroll the page behind, and there are no page errors.
 
+## Zoomed image sharpness (1.3.3)
+
+Measured in the real GUI with a 2000x1125 image of 2 px black/white stripes:
+
+- at fit (1229 px wide) the extreme-pixel ratio was 0.566;
+- after 3 wheel notches (scale 1.6161, 1986 px wide, i.e. close to the native 2000 px) the ratio was 0.107 with will-change: transform, 0.615 after removing it, and 0.566 with a resize-based variant;
+- the regression test now screenshots the zoomed image, computes the ratio in a canvas and requires > 0.3 (the pre-fix build measures 0.107 and fails).
+
+This covers the case where the image is still below its native resolution; beyond that, upscaling is soft by nature.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

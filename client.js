@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.2'
+      const BUILD_STAMP = '1.3.3'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -1331,7 +1331,7 @@ function installImageLightbox() {
 .gh-md-lightbox{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;outline:none}
 .gh-md-lightbox-bg{position:absolute;inset:0;background:rgb(0 0 0/90%)}
 .gh-md-lightbox-content{position:relative;display:flex;align-items:center;justify-content:center;max-width:96vw;max-height:92vh}
-.gh-md-lightbox-image{max-width:96vw;max-height:92vh;border-radius:4px;box-shadow:0 8px 32px rgb(0 0 0/45%);cursor:zoom-in;will-change:transform;transform-origin:center center;user-select:none;touch-action:none}
+.gh-md-lightbox-image{max-width:96vw;max-height:92vh;border-radius:4px;box-shadow:0 8px 32px rgb(0 0 0/45%);cursor:zoom-in;transform-origin:center center;user-select:none;touch-action:none}
 .gh-md-lightbox-title{position:absolute;top:12px;left:0;right:0;text-align:center;color:rgb(255 255 255/92%);font-size:13px;pointer-events:none}
 /* 顶层块包装器用 display:contents：既让点击命中「这一块」，又让块内元素仍按文档直接子元素排布。 */
 .gh-md-document .gh-md-block{display:contents}
