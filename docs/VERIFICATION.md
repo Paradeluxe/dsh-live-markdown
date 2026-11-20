@@ -398,6 +398,19 @@ gui-update-check.mjs (10 assertions, routes mocked so no network is needed):
 - the real host endpoint reports the installed version;
 - no page errors.
 
+## Ctrl+F find (1.3.0)
+
+Verified in the real GUI (gui-find-check.mjs, 18 assertions) on a 250-line document that only renders the viewport:
+
+- Ctrl+F opens the bar with the input focused; a selection prefills the query;
+- typing shows the document-wide count (1/128, matching an independent scan of view.state.doc) while 26 visible matches are highlighted (2 of them inside table cells) and exactly one is marked current;
+- Enter / Shift+Enter move the count and scroll the editor when the match is outside the viewport (scrollTop 0 -> 2666);
+- case sensitivity, whole word and regex produce the same counts as the independent scan; an invalid pattern shows 正则无效 and no page errors; no matches shows 0/0;
+- Esc (in the bar and in the document) closes the bar and clears both highlight registries;
+- Ctrl+F also works while a table cell has focus.
+
+Regression suites after the change: gui-table-insert 25/25, gui-table-click-edge 6/6, gui-undo 12/12, gui-table-add 13/13, gui-update-check 10/10.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

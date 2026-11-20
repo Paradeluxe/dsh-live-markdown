@@ -2627,3 +2627,21 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - 安装形态用 `<plugin>/.git` 是否存在判断。
 
 **前端**：`client.js` 末尾一个独立 IIFE（不依赖 React）：加载 1.5s 后 `fetch("/github-md/update/check")`，`hasUpdate` 且未被 `localStorage["github-md:update-skipped"]` 记录时，在左下角渲染 `#gh-md-update-pill`（圆点 + 文案 + 更新/说明/×）。更新按钮 POST apply：成功后文案改成「已更新到 vX，重启 DSH 后生效」；失败保留「重试」并把 stderr 放进 title；非 git 安装点按钮直接打开发布页。每 4 小时复查一次。`window.__ghMdUpdate` 暴露 check/dismiss 供测试使用。
+
+---
+
+## 154. v1.3.0：Ctrl+F 查找
+
+**为什么不用 @codemirror/search**：预览是「整篇 markdown + 装饰层」，表格/图片/代码/数学都换成了 widget，CM6 的 search 装饰只作用在源码文本上，落在 widget 里的匹配根本看不见，而且自带面板的样式也不好和 Obsidian/VSCode 对齐。因此自己实现：计数按文档文本，高亮按渲染后的 DOM。
+
+**计数**：`view.state.doc.toString()` 上按选项扫描（大小写、全字、正则），最多 20000 条；正则非法返回 null，输入框标红提示「正则无效」。
+
+**高亮**：CSS Custom Highlight API（`CSS.highlights` + `::highlight()`），完全不改 DOM：
+
+- 遍历 `view.contentDOM` 的文本节点（跳过按钮/手柄/折叠箭头等 UI 文本），按当前选项找匹配并建 Range；
+- `gh-md-find` 画全部、`gh-md-find-current` 画当前——当前匹配按 `view.posAtDOM()` 映射；落在 widget 里无法逐字映射时，用 `view.domAtPos()` 找到所在 widget，把这个 widget 内的匹配都算当前；
+- 渲染层会自己重建 DOM（表格 remeasure、widget 重渲染），所以用 `MutationObserver` + `scroll` + `viewportChanged` 触发重画（重画本身不改 DOM，不会回环）。
+
+**交互**：`Mod-f` 走 keymap；另外在 document 上挂捕获阶段的 keydown（焦点在编辑器或其单元格里时接管，`preventDefault` + `stopPropagation`，避免应用层/浏览器查找抢走）；`Esc` 在正文里也能关。跳转用 `EditorView.scrollIntoView(pos, { y: "center" })`，下一帧再补画一次（widget 渲染完成后再画）。
+
+踩过的坑：模块里已经有 `const CSS = \`…\`` 这个样式字符串，直接把全局 `CSS` 对象遮住了——`CSS.highlights` 永远是 undefined，高亮一直画不出来；统一改成 `globalThis.CSS`。

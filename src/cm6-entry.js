@@ -1,5 +1,5 @@
 import { EditorState, EditorSelection, StateField, StateEffect, Prec, Transaction } from '@codemirror/state'
-import { EditorView, Decoration, WidgetType, keymap, drawSelection } from '@codemirror/view'
+import { EditorView, Decoration, WidgetType, ViewPlugin, keymap, drawSelection } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, isolateHistory, redo, redoDepth, undo, undoDepth } from '@codemirror/commands'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { markdown, insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
@@ -222,6 +222,51 @@ const CSS = `
   stroke-linecap: round; stroke-linejoin: round;
 }
 .gh-md-cm6-lp .gh-md-cm6-callout:hover .gh-md-cm6-callout-chevron { color: var(--dsw-alias-label-secondary, #57606a); }
+/* ── 查找条（Ctrl+F，VSCode / Obsidian 风格） ── */
+.gh-md-findbar {
+  position: absolute; top: 6px; right: 18px; z-index: 60;
+  display: none; align-items: center; gap: 2px;
+  padding: 3px 4px 3px 6px;
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2, #ffffff);
+  border: 1px solid var(--gh-md-table-border, #e4e4e4);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%), 0 1px 3px rgb(0 0 0 / 6%);
+  font-family: var(--gh-md-ui-font, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
+  font-size: 12px; line-height: 1.4;
+  color: var(--dsw-alias-label-primary, #1f2328);
+}
+.gh-md-findbar.is-open { display: flex; }
+.gh-md-findbar .gh-md-find-input {
+  width: 170px; height: 24px; box-sizing: border-box;
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: inherit; font: inherit;
+  padding: 0 4px; outline: none;
+}
+.gh-md-findbar .gh-md-find-input::placeholder { color: var(--dsw-alias-label-tertiary, #8c959f); }
+.gh-md-findbar .gh-md-find-input:focus { border-color: var(--dsw-alias-state-info-primary, #0969da); background: var(--dsw-alias-bg-layer-1, #ffffff); }
+.gh-md-findbar.is-invalid .gh-md-find-input { border-color: #d1242f; color: #d1242f; }
+.gh-md-findbar .gh-md-find-count {
+  min-width: 52px; padding: 0 4px; text-align: right;
+  color: var(--dsw-alias-label-tertiary, #8c959f);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.gh-md-findbar.is-empty .gh-md-find-count { color: #d1242f; }
+.gh-md-findbar .gh-md-find-sep { width: 1px; height: 16px; margin: 0 2px; background: var(--gh-md-table-border, #e4e4e4); }
+.gh-md-findbar .gh-md-find-btn {
+  appearance: none; border: none; background: transparent; color: inherit;
+  width: 22px; height: 22px; border-radius: 4px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: inherit; font-size: 12px; line-height: 1; cursor: pointer; flex: none;
+  user-select: none;
+}
+.gh-md-findbar .gh-md-find-btn:hover { background: rgb(0 0 0 / 7%); }
+.gh-md-findbar .gh-md-find-btn.is-on { background: rgb(9 105 218 / 14%); color: var(--dsw-alias-state-info-primary, #0969da); }
+.gh-md-findbar .gh-md-find-btn.gh-md-find-case { width: 24px; font-size: 11px; letter-spacing: -.2px; }
+.gh-md-findbar .gh-md-find-btn.gh-md-find-word { font-size: 11px; }
+.gh-md-findbar .gh-md-find-btn.gh-md-find-regex { font-size: 11px; }
+.gh-md-findbar .gh-md-find-btn svg { display: block; }
+::highlight(gh-md-find) { background-color: rgb(255 213 79 / 62%); color: inherit; }
+::highlight(gh-md-find-current) { background-color: #ff9632; color: #111111; }
 `
 
 const INLINE_PATTERN = /(<!--[^>]*-->|<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>[^<]*<\/\2>|<br\s*\/?>|!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\)|`[^`]+`|\$[^$\n]+\$|==[^=\n]+==|\[\[[^\]]+\]\]|\[\^[^\]]+\]|#[\p{L}\p{N}_-]+|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\*[^*\s][^*]*\*|_[^_\s][^_]*_|\[[^\]]+\]\([^)]*\))/gu
@@ -3851,6 +3896,7 @@ const editingKeymap = [
   { key: 'Mod-b', run: boldCommand },
   { key: 'Mod-i', run: italicCommand },
   { key: 'Mod-s', run: saveNowCommand },
+  { key: 'Mod-f', run: (view) => { findControllerOf(view).open(); return true } },
   { key: 'Mod-Shift-k', run: deleteLineCommand },
   { key: 'Mod-Shift-K', run: deleteLineCommand },
   { key: 'Mod-k', run: insertWikilinkCommand },
@@ -3875,6 +3921,499 @@ function ensureStyle() {
   style.textContent = CSS
   document.head.appendChild(style)
 }
+
+/* ───────────────────────────── 查找（Ctrl+F） ─────────────────────────────
+ * 参照 VSCode / Obsidian / Chrome 的查找条：输入即搜、上一处/下一处、计数、
+ * 区分大小写 / 全字匹配 / 正则三个开关、Enter 下一处、Shift+Enter 上一处、Esc 关闭。
+ *
+ * 高亮用 CSS Custom Highlight API（::highlight()）：不改 DOM，所以不会和 CM6 的
+ * 渲染/虚拟化打架；文档只渲染视口内的行，所以「计数」按整篇文档文本算，
+ * 「高亮」只画当前渲染出来的那部分，跳转时用 scrollIntoView 把目标滚进视口再补画。
+ */
+
+const FIND_HIGHLIGHT_ALL = 'gh-md-find'
+const FIND_HIGHLIGHT_CURRENT = 'gh-md-find-current'
+const FIND_DEBOUNCE_MS = 90
+const FIND_MAX_MATCHES = 20000
+
+const findControllers = new WeakMap()
+
+/** 取（必要时创建）某个 editor 的查找控制器。 */
+function findControllerOf(view) {
+  let controller = findControllers.get(view)
+  if (controller === undefined) {
+    controller = createFindController(view)
+    findControllers.set(view, controller)
+  }
+  return controller
+}
+
+/** 整词判定：两侧不能是字母/数字/下划线（\p{L} 覆盖中文）。 */
+function isFindWordBounded(text, from, to) {
+  const isWord = (char) => char !== '' && char !== undefined && /[\p{L}\p{N}_]/u.test(char)
+  const before = from > 0 ? text[from - 1] : ''
+  const after = to < text.length ? text[to] : ''
+  return isWord(before) === false && isWord(after) === false
+}
+
+/** 在一段纯文本里按选项找匹配；正则非法时返回 null。 */
+function computeFindMatches(text, query, options) {
+  if (query === '') return []
+  const spans = []
+  if (options.regex === true) {
+    let regex
+    try {
+      regex = new RegExp(query, options.caseSensitive === true ? 'g' : 'gi')
+    } catch {
+      return null
+    }
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      if (match[0] === '') {
+        regex.lastIndex += 1
+        continue
+      }
+      spans.push({ from: match.index, to: match.index + match[0].length })
+      if (spans.length >= FIND_MAX_MATCHES) break
+    }
+    return spans
+  }
+  const haystack = options.caseSensitive === true ? text : text.toLowerCase()
+  const needle = options.caseSensitive === true ? query : query.toLowerCase()
+  let from = haystack.indexOf(needle)
+  while (from !== -1) {
+    const to = from + needle.length
+    if (options.wholeWord !== true || isFindWordBounded(text, from, to)) spans.push({ from, to })
+    if (spans.length >= FIND_MAX_MATCHES) break
+    from = haystack.indexOf(needle, to)
+  }
+  return spans
+}
+
+/** 在单个文本节点里找匹配（DOM 高亮用），返回 [start, end] 数组。 */
+function findInTextNode(text, query, options) {
+  const spans = []
+  if (query === '') return spans
+  if (options.regex === true) {
+    let regex
+    try {
+      regex = new RegExp(query, options.caseSensitive === true ? 'g' : 'gi')
+    } catch {
+      return spans
+    }
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      if (match[0] === '') {
+        regex.lastIndex += 1
+        continue
+      }
+      spans.push([match.index, match.index + match[0].length])
+      if (spans.length >= 500) break
+    }
+    return spans
+  }
+  const haystack = options.caseSensitive === true ? text : text.toLowerCase()
+  const needle = options.caseSensitive === true ? query : query.toLowerCase()
+  let from = haystack.indexOf(needle)
+  while (from !== -1) {
+    const to = from + needle.length
+    if (options.wholeWord !== true || isFindWordBounded(text, from, to)) spans.push([from, to])
+    if (spans.length >= 500) break
+    from = haystack.indexOf(needle, to)
+  }
+  return spans
+}
+
+const FIND_ICON_UP = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>'
+const FIND_ICON_DOWN = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>'
+const FIND_ICON_CLOSE = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+
+/**
+ * 创建一个查找控制器。
+ * @param view - CM6 EditorView。
+ * @returns 控制器（open/close/jump/onUpdate/destroy）。
+ */
+function createFindController(view) {
+  const state = {
+    open: false,
+    query: '',
+    caseSensitive: false,
+    wholeWord: false,
+    regex: false,
+    matches: [],
+    index: -1,
+    invalid: false,
+  }
+  let bar = null
+  let input = null
+  let countLabel = null
+  let caseButton = null
+  let wordButton = null
+  let regexButton = null
+  let searchTimer = null
+  let paintFrame = 0
+  let paintTimer = null
+
+  /** 文本节点是否属于可以高亮的正文（跳过按钮/手柄/折叠箭头等纯 UI 文本）。 */
+  const findWalkerFilter = {
+    acceptNode(node) {
+      if (node.nodeValue === null || node.nodeValue === '') return NodeFilter.FILTER_REJECT
+      const parent = node.parentElement
+      if (parent === null) return NodeFilter.FILTER_REJECT
+      if (parent.closest('button, [aria-hidden="true"], .gh-md-cm6-table-handle, .gh-md-cm6-table-insert-btn, .gh-md-cm6-table-add-row, .gh-md-cm6-table-add-col, .gh-md-cm6-table-insert-line, .gh-md-cm6-fold-chevron, .gh-md-findbar') !== null) return NodeFilter.FILTER_REJECT
+      return NodeFilter.FILTER_ACCEPT
+    },
+  }
+
+  /** 该位置所在的块级 widget 元素（不在 widget 里时返回 null）。 */
+  function widgetElementAt(pos) {
+    let at
+    try {
+      at = view.domAtPos(pos)
+    } catch {
+      return null
+    }
+    let element = at.node.nodeType === 1 ? at.node : at.node.parentElement
+    if (element === null) return null
+    const content = view.contentDOM
+    while (element !== null && element.parentElement !== null && element.parentElement !== content) element = element.parentElement
+    if (element === null || element === content || element.parentElement !== content) return null
+    return element.classList.contains('cm-line') ? null : element
+  }
+
+  /** 某个文本节点所在的块级 widget 元素（不在 widget 里时返回 null）。 */
+  function widgetElementOfNode(node) {
+    let element = node.parentElement
+    const content = view.contentDOM
+    while (element !== null && element.parentElement !== null && element.parentElement !== content) element = element.parentElement
+    if (element === null || element === content || element.parentElement !== content) return null
+    return element.classList.contains('cm-line') ? null : element
+  }
+
+  /** 清掉所有高亮。 */
+  function clearHighlights() {
+    if (typeof globalThis.CSS === 'undefined' || globalThis.CSS.highlights === undefined) return
+    globalThis.CSS.highlights.delete(FIND_HIGHLIGHT_ALL)
+    globalThis.CSS.highlights.delete(FIND_HIGHLIGHT_CURRENT)
+  }
+
+  /** 画高亮：所有可见匹配一份、当前匹配一份（更醒目）。 */
+  function paintNow() {
+    if (typeof globalThis.CSS === 'undefined' || globalThis.CSS.highlights === undefined) return
+    clearHighlights()
+    if (state.open === false || state.query === '' || state.invalid === true || state.matches.length === 0) return
+    const all = new Highlight()
+    const current = new Highlight()
+    const currentMatch = state.index >= 0 ? state.matches[state.index] : null
+    const currentWidget = currentMatch === null ? null : widgetElementAt(currentMatch.from)
+    const walker = document.createTreeWalker(view.contentDOM, NodeFilter.SHOW_TEXT, findWalkerFilter)
+    let node = walker.nextNode()
+    while (node !== null) {
+      const text = node.nodeValue
+      const spans = findInTextNode(text, state.query, state)
+      if (spans.length > 0) {
+        const nodeWidget = currentWidget === null ? null : widgetElementOfNode(node)
+        for (let index = 0; index < spans.length; index += 1) {
+          const range = document.createRange()
+          range.setStart(node, spans[index][0])
+          range.setEnd(node, spans[index][1])
+          all.add(range)
+          if (currentMatch !== null) {
+            if (currentWidget !== null && nodeWidget === currentWidget) {
+              current.add(range)
+            } else if (currentWidget === null) {
+              let pos = null
+              try {
+                pos = view.posAtDOM(node, spans[index][0])
+              } catch {}
+              if (pos === currentMatch.from) current.add(range)
+            }
+          }
+        }
+      }
+      node = walker.nextNode()
+    }
+    globalThis.CSS.highlights.set(FIND_HIGHLIGHT_ALL, all)
+    if (current.size > 0) globalThis.CSS.highlights.set(FIND_HIGHLIGHT_CURRENT, current)
+  }
+
+  /** 下一帧 + 稍后再画一次（widget 重新渲染会换掉文本节点）。 */
+  function schedulePaint() {
+    if (paintFrame !== 0) window.cancelAnimationFrame(paintFrame)
+    paintFrame = window.requestAnimationFrame(() => {
+      paintFrame = 0
+      paintNow()
+      if (paintTimer !== null) window.clearTimeout(paintTimer)
+      paintTimer = window.setTimeout(() => {
+        paintTimer = null
+        paintNow()
+      }, 140)
+    })
+  }
+
+  /** 更新输入框右侧的计数。 */
+  function updateCount() {
+    if (countLabel === null) return
+    let text = ''
+    let empty = false
+    if (state.query !== '') {
+      if (state.invalid === true) {
+        text = '正则无效'
+        empty = true
+      } else if (state.matches.length === 0) {
+        text = '0/0'
+        empty = true
+      } else {
+        text = String(state.index + 1) + '/' + String(state.matches.length)
+      }
+    }
+    countLabel.textContent = text
+    if (bar !== null) {
+      bar.classList.toggle('is-empty', empty)
+      bar.classList.toggle('is-invalid', state.invalid === true)
+    }
+    if (caseButton !== null) caseButton.classList.toggle('is-on', state.caseSensitive === true)
+    if (wordButton !== null) wordButton.classList.toggle('is-on', state.wholeWord === true)
+    if (regexButton !== null) regexButton.classList.toggle('is-on', state.regex === true)
+  }
+
+  /** 重新算匹配（可选把当前索引重置到第一处）。 */
+  function runSearch(resetIndex) {
+    const matches = computeFindMatches(view.state.doc.toString(), state.query, state)
+    state.invalid = matches === null
+    state.matches = matches === null ? [] : matches
+    if (state.matches.length === 0) state.index = -1
+    else if (resetIndex === true || state.index < 0 || state.index >= state.matches.length) state.index = 0
+    updateCount()
+    if (resetIndex === true && state.matches.length > 0) scrollToCurrent()
+    schedulePaint()
+  }
+
+  function scheduleSearch(resetIndex) {
+    if (searchTimer !== null) window.clearTimeout(searchTimer)
+    searchTimer = window.setTimeout(() => {
+      searchTimer = null
+      runSearch(resetIndex)
+    }, FIND_DEBOUNCE_MS)
+  }
+
+  /** 把当前匹配滚进视口（垂直居中）。 */
+  function scrollToCurrent() {
+    if (state.index < 0 || state.matches.length === 0) return
+    const match = state.matches[state.index]
+    try {
+      view.dispatch({ effects: EditorView.scrollIntoView(match.from, { y: 'center' }) })
+    } catch {}
+  }
+
+  /** 上一处 / 下一处（循环）。 */
+  function jump(delta) {
+    if (state.matches.length === 0) return
+    const total = state.matches.length
+    state.index = ((state.index + delta) % total + total) % total
+    updateCount()
+    scrollToCurrent()
+    schedulePaint()
+  }
+
+  function makeButton(html, title, onClick, extraClass) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'gh-md-find-btn' + (extraClass === undefined ? '' : ' ' + extraClass)
+    button.innerHTML = html
+    button.title = title
+    button.setAttribute('aria-label', title)
+    button.addEventListener('mousedown', (event) => { event.preventDefault() })
+    button.addEventListener('click', () => { onClick() })
+    return button
+  }
+
+  /** 懒建查找条 DOM。 */
+  function ensureBar() {
+    if (bar !== null) return
+    bar = document.createElement('div')
+    bar.className = 'gh-md-findbar'
+    bar.setAttribute('role', 'search')
+    bar.setAttribute('aria-label', '查找')
+
+    input = document.createElement('input')
+    input.type = 'text'
+    input.className = 'gh-md-find-input'
+    input.setAttribute('placeholder', '查找')
+    input.setAttribute('aria-label', '查找内容')
+    input.addEventListener('input', () => {
+      state.query = input.value
+      scheduleSearch(true)
+    })
+    input.addEventListener('keydown', (event) => {
+      event.stopPropagation()
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        jump(event.shiftKey === true ? -1 : 1)
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+      }
+    })
+    input.addEventListener('mousedown', (event) => { event.stopPropagation() })
+
+    countLabel = document.createElement('span')
+    countLabel.className = 'gh-md-find-count'
+    countLabel.setAttribute('aria-live', 'polite')
+
+    const previous = makeButton(FIND_ICON_UP, '上一处（Shift+Enter）', () => { jump(-1) })
+    const next = makeButton(FIND_ICON_DOWN, '下一处（Enter）', () => { jump(1) })
+    caseButton = makeButton('Aa', '区分大小写', () => {
+      state.caseSensitive = state.caseSensitive !== true
+      runSearch(false)
+    }, 'gh-md-find-case')
+    wordButton = makeButton('ab', '全字匹配', () => {
+      state.wholeWord = state.wholeWord !== true
+      runSearch(false)
+    }, 'gh-md-find-word')
+    regexButton = makeButton('.*', '正则表达式', () => {
+      state.regex = state.regex !== true
+      runSearch(false)
+    }, 'gh-md-find-regex')
+    const closeButton = makeButton(FIND_ICON_CLOSE, '关闭（Esc）', () => { close() }, 'gh-md-find-close')
+
+    const separator = document.createElement('span')
+    separator.className = 'gh-md-find-sep'
+
+    bar.appendChild(input)
+    bar.appendChild(countLabel)
+    bar.appendChild(previous)
+    bar.appendChild(next)
+    bar.appendChild(separator)
+    bar.appendChild(caseButton)
+    bar.appendChild(wordButton)
+    bar.appendChild(regexButton)
+    bar.appendChild(closeButton)
+    bar.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        close()
+      }
+    })
+    view.dom.appendChild(bar)
+  }
+
+  /** 打开查找条。 */
+  function open() {
+    ensureBar()
+    // 有单行、不过长的选区时，像 VSCode 一样拿它当查找词。
+    if (state.query === '') {
+      const selection = view.state.selection.main
+      if (selection.empty === false) {
+        const selected = view.state.sliceDoc(selection.from, selection.to)
+        if (selected !== '' && selected.includes('\n') === false && selected.length <= 200) state.query = selected
+      }
+    }
+    state.open = true
+    if (bar !== null) bar.classList.add('is-open')
+    if (input !== null) {
+      input.value = state.query
+      input.focus()
+      input.select()
+    }
+    runSearch(false)
+  }
+
+  /** 关闭查找条并清掉高亮。 */
+  function close() {
+    state.open = false
+    if (bar !== null) bar.classList.remove('is-open')
+    clearHighlights()
+    try {
+      view.focus()
+    } catch {}
+  }
+
+  /** editor 每次更新时调用：文档变了重算，视口变了重画。 */
+  function onUpdate(update) {
+    if (state.open === false) return
+    if (update.docChanged === true) scheduleSearch(false)
+    else if (update.viewportChanged === true) schedulePaint()
+  }
+
+  /** 视口滚动后重画（滚轮/跳转都会改视口）。 */
+  function onScroll() {
+    if (state.open === true) schedulePaint()
+  }
+
+  /**
+   * 渲染层会自己重建 DOM（表格重新测量、widget 重新渲染），重建后旧的 Range 就失效了，
+   * 所以 DOM 一变就补画一次（高亮本身不改 DOM，不会触发回环）。
+   */
+  const contentObserver = new MutationObserver(() => {
+    if (state.open === true) schedulePaint()
+  })
+  contentObserver.observe(view.contentDOM, { childList: true, subtree: true, characterData: true })
+
+  /** Ctrl+F / Cmd+F：焦点在预览里时接管，避免被浏览器或应用层的查找抢走。 */
+  function onGlobalKeydown(event) {
+    if (event.defaultPrevented === true) return
+    if (view.dom.isConnected === false) {
+      document.removeEventListener('keydown', onGlobalKeydown, true)
+      return
+    }
+    const active = document.activeElement
+    const inside = active !== null && (active === view.dom || view.dom.contains(active))
+    // 查找条开着时，在正文里按 Esc 也能关掉。
+    if (event.key === 'Escape' && state.open === true && inside === true && bar !== null && bar.contains(active) === false) {
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+      return
+    }
+    if ((event.ctrlKey !== true && event.metaKey !== true) || event.altKey === true || event.shiftKey === true) return
+    const key = typeof event.key === 'string' ? event.key.toLowerCase() : ''
+    if (key !== 'f') return
+    if (inside === false) return
+    event.preventDefault()
+    event.stopPropagation()
+    open()
+  }
+
+  view.scrollDOM.addEventListener('scroll', onScroll, { passive: true })
+  document.addEventListener('keydown', onGlobalKeydown, true)
+
+  return {
+    state,
+    open,
+    close,
+    jump,
+    onUpdate,
+    destroy() {
+      document.removeEventListener('keydown', onGlobalKeydown, true)
+      view.scrollDOM.removeEventListener('scroll', onScroll)
+      contentObserver.disconnect()
+      if (searchTimer !== null) window.clearTimeout(searchTimer)
+      if (paintFrame !== 0) window.cancelAnimationFrame(paintFrame)
+      if (paintTimer !== null) window.clearTimeout(paintTimer)
+      clearHighlights()
+      if (bar !== null) bar.remove()
+      findControllers.delete(view)
+    },
+  }
+}
+
+/** 每个 editor 一个查找插件：更新与销毁都走生命周期。 */
+const findPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.controller = findControllerOf(view)
+  }
+
+  update(update) {
+    this.controller.onUpdate(update)
+  }
+
+  destroy() {
+    this.controller.destroy()
+  }
+})
 
 /**
  * 创建一个整篇 Live Preview 原型编辑器。
@@ -3962,6 +4501,7 @@ export function createLivePreview(options) {
             return true
           },
         })),
+        findPlugin,
         Prec.highest(keymap.of(editingKeymap)),
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap]),
         markdown(),
