@@ -2645,3 +2645,19 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 **交互**：`Mod-f` 走 keymap；另外在 document 上挂捕获阶段的 keydown（焦点在编辑器或其单元格里时接管，`preventDefault` + `stopPropagation`，避免应用层/浏览器查找抢走）；`Esc` 在正文里也能关。跳转用 `EditorView.scrollIntoView(pos, { y: "center" })`，下一帧再补画一次（widget 渲染完成后再画）。
 
 踩过的坑：模块里已经有 `const CSS = \`…\`` 这个样式字符串，直接把全局 `CSS` 对象遮住了——`CSS.highlights` 永远是 undefined，高亮一直画不出来；统一改成 `globalThis.CSS`。
+
+---
+
+## 155. v1.3.1：刷新链路核对 + 保存冲突保护
+
+**刷新链路**：预览头的「重新读取文件」= 官方文档预览的 `reload()` → `reloadPages()` 重新读文件并把新的 `content` 交给渲染器；自动刷新默认开启，靠文件元数据变化触发同一套 reload。实测四条路径都能拿到最新内容（含同长度、同一秒的改动）。
+
+**真正的问题**：`MarkdownBody` 在 `dirtyRef.current === true`（有未落盘草稿）时，精确读取 effect 直接 return（不覆盖草稿），所以外部改动看不到；更糟的是 `persist()` 不校验磁盘版本，一次保存会把别人的改动静默覆盖。
+
+**修复**：
+
+- Host `saveWorkspaceFile(root, relative, content, base)`：`base` 是客户端上次读到的文本（LF 归一化后比较），不一致 → `code: "conflict"` → 路由映射成 **409**；
+- 客户端新增 `lastDiskTextRef`（精确读取时写入，成功保存后更新），**所有** save 请求（persist / flushDraft / 卸载兜底 / sendBeacon）都带 `base`；
+- `persist()` 收到 409 → `saveState = "conflict"`、提示条文案「外部已修改 · 重新载入」，不重试、不覆盖；点提示条调 `reloadFromDisk()`（重新 `read` → 重置编辑器 / docText / 基线 / dirty 标记）；
+- 精确读取 / 外部内容同步两处：草稿存在时不再静默顶掉，改为标记 conflict；
+- 提示条复用 `.gh-md-save-pill`，新增 `[data-tone=conflict]` 配色。

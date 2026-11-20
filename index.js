@@ -264,11 +264,25 @@ async function readWorkspaceFile(root, relative) {
  * @param content - UTF-8 文本。
  * @returns 保存后的元信息。
  */
-async function saveWorkspaceFile(root, relative, content) {
+async function saveWorkspaceFile(root, relative, content, base) {
   const target = resolveInside(root, relative)
   if (target === null) throw Object.assign(new Error('path outside workspace'), { code: 'outside' })
   if (!MARKDOWN_EXTENSIONS.has(extname(target).toLowerCase())) throw Object.assign(new Error('not a Markdown file'), { code: 'extension' })
   if (Buffer.byteLength(content, 'utf8') > MAX_TEXT_BYTES) throw Object.assign(new Error('file too large'), { code: 'too-large' })
+  // 乐观并发：客户端带上「上次读到的内容」，磁盘上的内容变了就拒绝写入，
+  // 让前端弹「外部已修改」而不是把别人的改动静默覆盖掉。
+  if (typeof base === 'string') {
+    let diskText = ''
+    try {
+      diskText = await readFile(target, 'utf8')
+    } catch {
+      diskText = ''
+    }
+    const normalize = (value) => String(value).replace(/\r\n/gu, '\n')
+    if (normalize(diskText) !== normalize(base)) {
+      throw Object.assign(new Error('file changed on disk'), { code: 'conflict' })
+    }
+  }
   await writeFile(target, content, 'utf8')
   const info = await stat(target)
   return { path: relative, absolutePath: target, size: info.size, mtimeMs: info.mtimeMs }
@@ -341,14 +355,14 @@ async function serveWorkspaceApi(ctx, req, res, pathname, search) {
       const root = workspaceRootOf(ctx, body.sessionId)
       if (root === null) return sendJson(res, 404, { error: 'workspace-unknown' })
       if (typeof body.path !== 'string' || typeof body.content !== 'string') return sendJson(res, 400, { error: 'bad-request' })
-      const saved = await saveWorkspaceFile(root, body.path, body.content)
+      const saved = await saveWorkspaceFile(root, body.path, body.content, typeof body.base === 'string' ? body.base : undefined)
       return sendJson(res, 200, saved)
     }
     res.statusCode = 405
     res.end()
   } catch (error) {
     const code = error !== null && error !== undefined && typeof error.code === 'string' ? error.code : 'failed'
-    const status = code === 'outside' || code === 'extension' ? 403 : code === 'too-large' ? 413 : 400
+    const status = code === 'outside' || code === 'extension' ? 403 : code === 'too-large' ? 413 : code === 'conflict' ? 409 : 400
     sendJson(res, status, { error: code, message: error instanceof Error ? error.message : String(error) })
   }
 }

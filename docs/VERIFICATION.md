@@ -411,6 +411,19 @@ Verified in the real GUI (gui-find-check.mjs, 18 assertions) on a 250-line docum
 
 Regression suites after the change: gui-table-insert 25/25, gui-table-click-edge 6/6, gui-undo 12/12, gui-table-add 13/13, gui-update-check 10/10.
 
+## Refresh + save conflict (1.3.1)
+
+Measured in the real GUI (gui-refresh-check.mjs, 14 assertions):
+
+- auto refresh off + external change -> the preview stays on the old text, clicking the reload tool (`[data-textpreview-tool=reload]`) shows the new text;
+- an external change of exactly the same byte length is picked up too;
+- auto refresh on -> the external change appears without clicking anything;
+- with an unsaved draft, Ctrl+S is rejected by the host (409), the pill reads "changed on disk - reload", the file on disk keeps the external version, and clicking the pill loads the disk version into the editor;
+- a normal Ctrl+S without an external change still writes to disk;
+- no uncaught page errors (the expected 409 network log is filtered).
+
+Also checked the workspace file panel (`[data-files-reload]`): a newly created file appears both through auto refresh and after clicking reload.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

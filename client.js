@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.0'
+      const BUILD_STAMP = '1.3.1'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -354,6 +354,8 @@ function installImageLightbox() {
         editPreview: '预览',
         editSave: '保存',
         editRetry: '重试保存',
+        editConflict: '外部已修改 · 重新载入',
+        editReload: '重新载入磁盘版本',
         editSaving: '保存中…',
         editSaved: '已保存',
         editFailed: '保存失败',
@@ -434,6 +436,8 @@ function installImageLightbox() {
         editPreview: 'Preview',
         editSave: 'Save',
         editRetry: 'Retry save',
+        editConflict: 'Changed on disk - Reload',
+        editReload: 'Reload the file from disk',
         editSaving: 'Saving…',
         editSaved: 'Saved',
         editFailed: 'Save failed',
@@ -1366,6 +1370,7 @@ function installImageLightbox() {
 .gh-md-save-pill[data-tone=saving]{color:var(--dsw-alias-label-secondary)}
 .gh-md-save-pill[data-tone=saved]{color:var(--dsw-alias-state-success-primary,var(--dsw-alias-label-secondary))}
 .gh-md-save-pill[data-tone=error]{color:var(--dsw-alias-state-error-primary,#c0392b);cursor:pointer}
+.gh-md-save-pill[data-tone=conflict]{color:var(--dsw-alias-state-warning-primary,#b4690e);cursor:pointer}
 .gh-md-document .katex-display{max-width:100%;overflow-x:auto;overflow-y:hidden}
 .gh-md-document .gh-md-frontmatter{border:.5px solid var(--dsw-alias-border-l2);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code);font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 14px;padding:8px 10px}
 .gh-md-document .gh-md-local-link{color:inherit;text-decoration:underline dotted;cursor:help}
@@ -1738,7 +1743,9 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         }
         if (!response.ok) {
           const message = (data !== null && (data.message ?? data.error)) || 'HTTP ' + response.status
-          throw new Error(String(message))
+          const error = new Error(String(message))
+          if (data !== null && typeof data.error === 'string') error.code = data.error
+          throw error
         }
         return data ?? {}
       }
@@ -2408,12 +2415,16 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const docTextRef = React.useRef(streamText)
         const editingRef = React.useRef(null)
         const dirtyRef = React.useRef(false)
+        /** 是否检测到「磁盘被外部修改」的冲突。 */
+        const conflictRef = React.useRef(false)
         const commitEditingRef = React.useRef(null)
         const saveTimerRef = React.useRef(null)
         const saveStateTimerRef = React.useRef(null)
         const exactRef = React.useRef(false)
         const eolRef = React.useRef('\n')
         const savedTextRef = React.useRef('')
+        /** 最后一次从磁盘读到 / 成功写回的内容：保存时作为"我基于哪一版"的基线。 */
+        const lastDiskTextRef = React.useRef('')
         const pendingSaveTextRef = React.useRef('')
         /** 最近一次改动时间：可见状态下用 5 分钟兜底写盘。 */
         const dirtyAtRef = React.useRef(0)
@@ -2469,7 +2480,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
               fetch(WORKBENCH_API + 'save', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ sessionId, path: sourcePathRef.current, content: body }),
+                body: JSON.stringify({ sessionId, path: sourcePathRef.current, content: body, base: lastDiskTextRef.current }),
                 keepalive: true,
               })
             } catch {}
@@ -2785,6 +2796,13 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           if (current === docText) return
           // 只差尾部空白（流式/保存回读常见）就不打断编辑器
           if (current.replace(/\s+$/u, '') === docText.replace(/\s+$/u, '')) return
+          if (dirtyRef.current) {
+            // 有未落盘的本地改动：外部内容只提示，不覆盖编辑器。
+            conflictRef.current = true
+            setSaveState('conflict')
+            setSaveMessage(tr('editConflict', '外部已修改 · 重新载入'))
+            return
+          }
           const host = cm6HostRef.current
           const active = document.activeElement
           const focused = host !== null && active !== null && active !== undefined && host.contains(active) && active !== document.body
@@ -2987,12 +3005,22 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             exactRef.current = true
             setEditableKnown(true)
             setEditable(true)
-            if (editingRef.current !== null || dirtyRef.current) return
             const rawText = String(data.content ?? '')
             // marked 的 token.raw 是 LF 归一化后的文本；内部统一用 LF 渲染/编辑，
             // 保存时再按原文件的换行风格写回，这样块区间能精确对回原文。
             eolRef.current = rawText.includes('\r\n') ? '\r\n' : '\n'
             const exactText = rawText.replace(/\r\n/gu, '\n')
+            const previousDisk = lastDiskTextRef.current
+            lastDiskTextRef.current = exactText
+            if (editingRef.current !== null || dirtyRef.current) {
+              // 本地有未落盘改动：外部内容不能悄悄顶掉它，也不能被我们覆盖；只提示冲突。
+              if (exactText !== previousDisk && exactText !== savedTextRef.current) {
+                conflictRef.current = true
+                setSaveState('conflict')
+                setSaveMessage(tr('editConflict', '外部已修改 · 重新载入'))
+              }
+              return
+            }
             savedTextRef.current = exactText
             if (docTextRef.current !== exactText) {
               docTextRef.current = exactText
@@ -3255,7 +3283,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           const body = docTextRef.current
           if (body === savedTextRef.current) return
           try {
-            const payload = JSON.stringify({ sessionId, path, content: body })
+            const payload = JSON.stringify({ sessionId, path, content: body, base: lastDiskTextRef.current })
             const blob = new Blob([payload], { type: 'application/json' })
             if (navigator.sendBeacon !== undefined) navigator.sendBeacon(WORKBENCH_API + 'save', blob)
             pendingSaveTextRef.current = body
@@ -3309,8 +3337,9 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           pendingSaveTextRef.current = snapshot
           try {
             const body = eolRef.current === '\r\n' ? snapshot.replace(/\n/gu, '\r\n') : snapshot
-            await workbenchRequest('save', { sessionId, path, content: body })
+            await workbenchRequest('save', { sessionId, path, content: body, base: lastDiskTextRef.current })
             savedTextRef.current = snapshot
+            lastDiskTextRef.current = snapshot
             if (pendingSaveTextRef.current === snapshot) pendingSaveTextRef.current = ''
             dirtyRef.current = false
             if (!aliveRef.current) return
@@ -3319,6 +3348,45 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           } catch (error) {
             if (pendingSaveTextRef.current === snapshot) pendingSaveTextRef.current = ''
             if (!aliveRef.current) return
+            const code = error !== null && error !== undefined && typeof error.code === 'string' ? error.code : ''
+            if (code === 'conflict') {
+              // 磁盘被别人改了：保留本地草稿，提示用户选择「重新载入」。
+              conflictRef.current = true
+              setSaveState('conflict')
+              setSaveMessage(tr('editConflict', '外部已修改 · 重新载入'))
+              return
+            }
+            setSaveState('error')
+            setSaveMessage(String(error?.message ?? error))
+          }
+        }
+
+        /** 重新从磁盘载入（外部改动冲突时点保存提示触发）。 */
+        const reloadFromDisk = async () => {
+          const path = sourcePathRef.current
+          if (typeof path !== 'string' || path === '' || sessionId === '') return
+          try {
+            const data = await workbenchRequest('read', { sessionId, path })
+            const rawText = String(data.content ?? '')
+            eolRef.current = rawText.includes('\r\n') ? '\r\n' : '\n'
+            const diskText = rawText.replace(/\r\n/gu, '\n')
+            lastDiskTextRef.current = diskText
+            savedTextRef.current = diskText
+            docTextRef.current = diskText
+            dirtyRef.current = false
+            conflictRef.current = false
+            pendingSaveTextRef.current = ''
+            setDocText(diskText)
+            const wrapper = cm6ViewRef.current
+            if (wrapper !== null) {
+              try {
+                wrapper.view.dispatch({ changes: { from: 0, to: wrapper.view.state.doc.length, insert: diskText } })
+              } catch {}
+            }
+            if (saveStateTimerRef.current !== null) window.clearTimeout(saveStateTimerRef.current)
+            setSaveState('saved')
+            hideSaveSoon(1400)
+          } catch (error) {
             setSaveState('error')
             setSaveMessage(String(error?.message ?? error))
           }
@@ -3450,7 +3518,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             fetch(WORKBENCH_API + 'save', {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ sessionId, path, content: body }),
+              body: JSON.stringify({ sessionId, path, content: body, base: lastDiskTextRef.current }),
               keepalive: true,
             })
           } catch {}
@@ -3808,6 +3876,30 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         // 首次打开（尤其重启后第一次）：可写性未确认前，用与编辑器同一套容器的空白态占位，
         // 避免先渲染一版静态排版、随后切换成 Live Preview 造成的“错误样式”观感。
         // 首帧时 sourcePath/sessionId 可能还没填好，用 content 判断“这是一个可写的文本文档”。
+        const renderSavePill = () => (saveState === 'idle'
+          ? null
+          : h('button', {
+              type: 'button',
+              className: 'gh-md-save-pill',
+              'data-tone': saveState,
+              title: saveState === 'conflict'
+                ? tr('editReload', '重新载入磁盘版本')
+                : saveState === 'error'
+                  ? tr('editRetry', '重试')
+                  : undefined,
+              onClick: saveState === 'conflict'
+                ? () => { void reloadFromDisk() }
+                : saveState === 'error'
+                  ? () => { void persist() }
+                  : undefined,
+            },
+              saveState === 'saving'
+                ? tr('editSaving', '保存中…')
+                : saveState === 'saved'
+                  ? tr('editSaved', '已保存')
+                  : saveState === 'conflict'
+                    ? (saveMessage !== '' ? saveMessage : tr('editConflict', '外部已修改 · 重新载入'))
+                    : (saveMessage !== '' ? saveMessage : tr('editFailed', '保存失败'))))
         const cm6WritableCandidate = (typeof sourcePath === 'string' && sourcePath !== '' && sessionId !== '')
           || (content !== null && content !== undefined && content.kind === 'text')
         // 仅真实浏览器：jsdom 集成测试与显式禁用 CM6 时保持旧的"先静态后切换"行为。
@@ -3819,20 +3911,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         // 首次打开（尤其重启后第一次）：只要还没准备好可用编辑器，就用与编辑器同一套容器的空白态占位，
         // 绝不先渲染一版静态排版再切换 —— 那正是“第一次显示样式错误”的来源。
         if ((cm6Loaded && editable) || cm6WaitingForReady) {
-          const cm6Pill = saveState === 'idle'
-            ? null
-            : h('button', {
-                type: 'button',
-                className: 'gh-md-save-pill',
-                'data-tone': saveState,
-                title: saveState === 'error' ? tr('editRetry', '重试') : undefined,
-                onClick: saveState === 'error' ? () => { void persist() } : undefined,
-              },
-                saveState === 'saving'
-                  ? tr('editSaving', '保存中…')
-                  : saveState === 'saved'
-                    ? tr('editSaved', '已保存')
-                    : (saveMessage !== '' ? saveMessage : tr('editFailed', '保存失败')))
+          const cm6Pill = renderSavePill()
           const copyHintNode = copyHint === null
             ? null
             : h('div', { className: 'gh-md-copy-hint', title: copyHint.detail },
@@ -3931,20 +4010,7 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         if (doc.trailing !== '') {
           nodes.push(h('div', { key: 'trailing', className: 'gh-md-static', dangerouslySetInnerHTML: { __html: doc.trailing } }))
         }
-        const savePill = saveState === 'idle'
-          ? null
-          : h('button', {
-              type: 'button',
-              className: 'gh-md-save-pill',
-              'data-tone': saveState,
-              title: saveState === 'error' ? tr('editRetry', '重试') : undefined,
-              onClick: saveState === 'error' ? () => { void persist() } : undefined,
-            },
-              saveState === 'saving'
-                ? tr('editSaving', '保存中…')
-                : saveState === 'saved'
-                  ? tr('editSaved', '已保存')
-                  : (saveMessage !== '' ? saveMessage : tr('editFailed', '保存失败')))
+        const savePill = renderSavePill()
         if (cellEdit !== null) {
           nodes.push(h('input', {
             key: 'cell-edit',
