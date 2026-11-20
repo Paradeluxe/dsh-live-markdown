@@ -2661,3 +2661,19 @@ Obsidian（CDP 实测）的键盘行为：单元格内 `Shift+↓/↑` 跨格扩
 - `persist()` 收到 409 → `saveState = "conflict"`、提示条文案「外部已修改 · 重新载入」，不重试、不覆盖；点提示条调 `reloadFromDisk()`（重新 `read` → 重置编辑器 / docText / 基线 / dirty 标记）；
 - 精确读取 / 外部内容同步两处：草稿存在时不再静默顶掉，改为标记 conflict；
 - 提示条复用 `.gh-md-save-pill`，新增 `[data-tone=conflict]` 配色。
+
+---
+
+## 156. v1.3.2：图片灯箱缩放的三个问题
+
+灯箱（`openImageLightbox`）用 `translate(tx,ty) scale(s)`，`transform-origin: center center`，滚轮按 `factor = exp(-deltaY * 0.0016)` 缩放，并以光标为锚点换算 `offset`：
+
+```
+offsetX' = (cx - Vx) - ((cx - Vx) - offsetX) * ratio
+```
+
+**问题一：缩回来不居中**。归中条件写的是 `scale <= MIN_SCALE + 0.0001`（MIN=0.25），所以从 8x 缩回 1x 时 offset 一直保留着「朝鼠标方向」的平移，实测中心偏 (+55, -41)px。改为 `scale <= 1.0001` 归中。
+
+**问题二：最小 0.25x 没意义**。适配尺寸（1x）已经把整张图放进视口，比它还小只会让图缩成一小块、还带着偏移。`MIN_SCALE = 1`。
+
+**问题三：拖拽能把图拖出视口**。新增 `clampOffset()`：缩放后宽度 `W = offsetWidth * scale`，限制 `|offsetX| <= W/2`、`|offsetY| <= H/2`，即视口中心始终落在图片上；`applyTransform()` 每次都会 clamp，拖拽结束（`endDrag` 里已有 `applyTransform()`）也会自动弹回。

@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.1'
+      const BUILD_STAMP = '1.3.2'
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -59,7 +59,7 @@ function openImageLightbox(src, title) {
   overlay.appendChild(titlebar)
 
   // 滚轮缩放 + 放大后拖拽平移（Obsidian 的大图预览也支持滚轮缩放）。
-  const MIN_SCALE = 0.25
+  const MIN_SCALE = 1
   const MAX_SCALE = 8
   let scale = 1
   let offsetX = 0
@@ -71,7 +71,23 @@ function openImageLightbox(src, title) {
   let dragOriginX = 0
   let dragOriginY = 0
 
+  /**
+   * 平移量限制：让视口中心始终落在图片上（图片不会被拖到完全看不见）。
+   * 以「图片自身中心 + 偏移」记位置，|offset| <= 缩放后宽度的一半即可保证这一点。
+   */
+  const clampOffset = () => {
+    if (scale <= 1.0001) {
+      offsetX = 0
+      offsetY = 0
+      return
+    }
+    const limitX = (image.offsetWidth * scale) / 2
+    const limitY = (image.offsetHeight * scale) / 2
+    offsetX = Math.min(limitX, Math.max(-limitX, offsetX))
+    offsetY = Math.min(limitY, Math.max(-limitY, offsetY))
+  }
   const applyTransform = () => {
+    clampOffset()
     image.style.transform = 'translate(' + offsetX.toFixed(2) + 'px, ' + offsetY.toFixed(2) + 'px) scale(' + scale.toFixed(4) + ')'
     image.style.cursor = scale > 1 ? 'grab' : 'zoom-in'
   }
@@ -91,7 +107,8 @@ function openImageLightbox(src, title) {
     offsetX = (clientX - centerX) - ((clientX - centerX) - offsetX) * ratio
     offsetY = (clientY - centerY) - ((clientY - centerY) - offsetY) * ratio
     scale = clamped
-    if (scale <= MIN_SCALE + 0.0001) {
+    if (scale <= 1.0001) {
+      // 缩回适配尺寸：图片应当正对屏幕中心，不再保留"朝鼠标方向"的偏移。
       offsetX = 0
       offsetY = 0
     }

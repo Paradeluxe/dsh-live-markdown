@@ -424,6 +424,18 @@ Measured in the real GUI (gui-refresh-check.mjs, 14 assertions):
 
 Also checked the workspace file panel (`[data-files-reload]`): a newly created file appears both through auto refresh and after clicking reload.
 
+## Image lightbox zoom (1.3.2)
+
+Measured in the real GUI with a 640x360 test image (gui-image-zoom-check.mjs, 14 assertions):
+
+- double-click opens the lightbox fitted at 640x360 exactly at the viewport centre;
+- one wheel notch at an off-centre point (640+180, 450-120) zooms to 1.6161 and the point under the cursor drifts by 0 px;
+- zooming back out returns to 640x360 at (640, 450) with translate(0,0) - before the fix it ended at (695, 409) with scale 0.7257;
+- the minimum zoom is the fit size: four further wheel-down events keep 640x360 (before: shrunk to 0.25x, 160x90);
+- twelve wheel-ups stop at scale 8;
+- dragging 3000 px keeps the viewport centre inside the image (pan clamp);
+- 0 resets, Escape closes, the wheel does not scroll the page behind, and there are no page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
