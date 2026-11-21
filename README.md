@@ -706,3 +706,11 @@ MIT — see [LICENSE](LICENSE).
 实测：红 → 外部改蓝 → 点「重新读取文件」→ 变成蓝（URL 的 `v` 从 …1707 变成 …8509）；再改绿 → 切回窗口即变绿，无需点刷新。
 
 新增 `gui-image-cache-check.mjs`（7 项）。
+
+## 1.3.5（v1.3.5）：修 1.3.4 带来的渲染冒烟失败
+
+1.3.4 把「图片版本」参数加进静态渲染器的图片地址时，helper 写在了 `/* github-md:render:start */ … /* end */` 片段**外面**——而 `scripts/render-smoke.mjs` 只截取片段内容单独执行，于是 `resolveImage` 里引用不到 helper，图片改写失败、冒烟断言挂掉。
+
+现在把纯函数 helper（`imageVersionCache` / `imageVersionKey` / `imageVersionParam`）放进片段内，异步的 stat/刷新逻辑留在片段外。**用户可见行为与 1.3.4 完全一致**（缓存击穿地址与刷新时机不变）。
+
+验证：`render-smoke` → RENDER OK，`run-all-checks` → ALL CHECKS PASS；图片缓存流程 7/7（红 → 点重新读取 → 变蓝；改绿后切回窗口自动变绿）。

@@ -2708,3 +2708,15 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 2. 客户端 `imageVersionCache`（绝对路径小写 → mtimeMs）；`imageVersionParam()` 生成 `&v=<round(mtimeMs)>`，静态渲染器与 CM6 widget 的图片 URL 都拼上它。
 3. `refreshPreviewImageVersions(root, sessionId)`：扫描 root 下所有 `/api/file` 图片，批量 stat，mtime 变化就 `src` 换新 URL（只换变了的）。
 4. 触发点：预览异步挂载（轮询直到 root 里出现 img）、`docText` 变化（重载）、`window` focus（切回 DSH 时）。注意 CM6 分支没有 rootRef，要用 cm6HostRef 兜底。
+
+---
+
+## 159. v1.3.5：render-smoke 片段边界
+
+`scripts/render-smoke.mjs` 的做法是：从 `client.js` 里截出 `/* github-md:render:start */ … /* github-md:render:end */` 之间的代码，塞进 `new Function` 单独跑（用来在 Node + jsdom 里测纯渲染函数）。
+
+1.3.4 在 `resolveImage()` 里调用了 `imageVersionParam()`，但把它定义在片段之外 → 单独执行时 ReferenceError，`rewriteImages` 失败，冒烟断言「本地图片应改写成 /api/file」挂掉。
+
+修复：把 `imageVersionCache` / `imageVersionKey` / `imageVersionParam` 这三个纯函数移进片段内（与 `resolveImage` 同作用域）；`fetchImageVersions` / `refreshPreviewImageVersions` 依赖网络与 DOM，仍留在片段外。
+
+教训：凡是渲染片段里会调用的东西，必须定义在片段标记之间。
