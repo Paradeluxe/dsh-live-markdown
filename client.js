@@ -28,19 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.4'
-
-      /**
-       * 图片版本缓存：绝对路径 → 最后看到的 mtimeMs。
-       * /api/file 的响应是 `cache-control: private, max-age=31536000, immutable`，
-       * 文件名不变时浏览器永远不会重新取，所以 URL 上要带 ?v=mtime 才更新。
-       */
-      const imageVersionCache = new Map()
-      const imageVersionKey = (path) => String(path).replace(/\\/gu, '/').toLowerCase()
-      const imageVersionParam = (absolutePath) => {
-        const version = imageVersionCache.get(imageVersionKey(absolutePath))
-        return typeof version === 'number' ? '&v=' + String(Math.round(version)) : ''
-      }
+      const BUILD_STAMP = '1.3.5'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -533,6 +521,18 @@ function installImageLightbox() {
       const h = React.createElement
 
       /* github-md:render:start —— 渲染管线（纯函数，scripts/render-smoke.mjs 按标记截出来跑） */
+
+      /**
+       * 图片版本缓存：绝对路径 → 最后看到的 mtimeMs。
+       * /api/file 的响应是 cache-control: private, max-age=31536000, immutable，
+       * 文件名不变时浏览器永远不会重新取，所以 URL 上要带 ?v=mtime 才更新。
+       */
+      const imageVersionCache = new Map()
+      const imageVersionKey = (path) => String(path).replace(/\\/gu, '/').toLowerCase()
+      const imageVersionParam = (absolutePath) => {
+        const version = imageVersionCache.get(imageVersionKey(absolutePath))
+        return typeof version === 'number' ? '&v=' + String(Math.round(version)) : ''
+      }
 
       /**
        * HTML 转义，只用于「渲染失败」和 frontmatter 的兜底输出。

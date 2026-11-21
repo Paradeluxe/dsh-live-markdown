@@ -459,6 +459,10 @@ After the fix (gui-image-cache-check.mjs, 7 assertions):
 - overwriting again with green and dispatching window focus updates the preview without clicking anything;
 - no page errors.
 
+## Smoke test regression (1.3.5)
+
+1.3.4 broke npm run smoke: the extracted render snippet referenced imageVersionParam, which was defined outside the snippet markers, so resolveImage threw and the "local image is rewritten to /api/file" assertion failed. Moving the pure helpers inside the snippet restores RENDER OK, and run-all-checks.mjs reports ALL CHECKS PASS again.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
