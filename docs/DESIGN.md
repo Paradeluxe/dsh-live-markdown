@@ -2695,3 +2695,16 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 结论：去掉 will-change: transform 即可（Chromium 会按当前 transform 倍率重新栅格化）；保留 transform 缩放/平移。
 
 回归断言写进 gui-image-zoom-check.mjs：放大后截图 → canvas 统计 extremeRatio，要求 > 0.3（修复前 0.107 会失败）。
+
+---
+
+## 158. v1.3.4：图片缓存不更新的根因与修复
+
+**根因**：图片 URL 是宿主文件路由 /api/file?path=…，响应头 `cache-control: private, max-age=31536000, immutable`。文件名不变时 URL 不变，浏览器按 immutable 直接复用缓存，所以外部替换同名图片后预览不会更新（点「重新读取文件」也没用，因为 markdown 文本没变、图片 URL 也没变）。
+
+**修复**：
+
+1. Host 新增 `GET /github-md/workspace/stat`：接受 sessionId + JSON 数组 paths，逐个 resolveInside 校验后 stat，返回 { files: { [path]: { mtimeMs, size } } }（最多 400 个）。
+2. 客户端 `imageVersionCache`（绝对路径小写 → mtimeMs）；`imageVersionParam()` 生成 `&v=<round(mtimeMs)>`，静态渲染器与 CM6 widget 的图片 URL 都拼上它。
+3. `refreshPreviewImageVersions(root, sessionId)`：扫描 root 下所有 `/api/file` 图片，批量 stat，mtime 变化就 `src` 换新 URL（只换变了的）。
+4. 触发点：预览异步挂载（轮询直到 root 里出现 img）、`docText` 变化（重载）、`window` focus（切回 DSH 时）。注意 CM6 分支没有 rootRef，要用 cm6HostRef 兜底。

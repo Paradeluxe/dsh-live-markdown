@@ -691,3 +691,18 @@ MIT — see [LICENSE](LICENSE).
 **说明**：放大超过图片**原始像素**之后变糊是物理上限（浏览器不能凭空造像素），Obsidian / Chrome 也一样；这次修的是「还没到原始像素就已经糊」的那一段。
 
 `gui-image-zoom-check.mjs` 扩到 **15 项**（新增：放大后截图做极值像素统计，糊掉会低于 0.3）。
+
+## 1.3.4（v1.3.4）：editor 里的图片缓存不更新——确认有，已修
+
+**问题**：编辑器里的图片走的是宿主 `/api/file?path=…`，该路由返回 `cache-control: private, max-age=31536000, immutable`。图片被同名替换（重新生成图表、覆盖截图）后，URL 没变，浏览器**永远不会重新取**。实测：红色图 → 外部覆盖成蓝色 → 点「重新读取文件」→ 预览仍然是红色；只有整页刷新才会变蓝。
+
+**修复**：
+
+- Host 新增 `GET /github-md/workspace/stat?sessionId=…&paths=[…]`，返回工作区内这些文件的 `mtimeMs` / `size`（只允许工作区内路径）；
+- 客户端把图片 mtime 记进 `imageVersionCache`，所有 `/api/file` 图片地址都带 `&v=<mtime>`；
+- 预览渲染后（含 CM6 异步挂载，轮询等图片出现）、内容重载、以及**窗口重新获得焦点**时，批量 stat 一次：mtime 变了的图片直接换 `src`，浏览器按新 URL 重新取；
+- 静态渲染与编辑器 widget 两条路径都走同一套 URL 规则，灯箱继承图片本身的 URL，因此也一起更新。
+
+实测：红 → 外部改蓝 → 点「重新读取文件」→ 变成蓝（URL 的 `v` 从 …1707 变成 …8509）；再改绿 → 切回窗口即变绿，无需点刷新。
+
+新增 `gui-image-cache-check.mjs`（7 项）。

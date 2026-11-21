@@ -28,7 +28,71 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.3'
+      const BUILD_STAMP = '1.3.4'
+
+      /**
+       * 图片版本缓存：绝对路径 → 最后看到的 mtimeMs。
+       * /api/file 的响应是 `cache-control: private, max-age=31536000, immutable`，
+       * 文件名不变时浏览器永远不会重新取，所以 URL 上要带 ?v=mtime 才更新。
+       */
+      const imageVersionCache = new Map()
+      const imageVersionKey = (path) => String(path).replace(/\\/gu, '/').toLowerCase()
+      const imageVersionParam = (absolutePath) => {
+        const version = imageVersionCache.get(imageVersionKey(absolutePath))
+        return typeof version === 'number' ? '&v=' + String(Math.round(version)) : ''
+      }
+
+      /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
+      async function fetchImageVersions(sessionId, paths) {
+        const unique = Array.from(new Set(paths.filter((entry) => typeof entry === 'string' && entry !== '')))
+        if (unique.length === 0 || sessionId === '') return
+        try {
+          const response = await fetch('/github-md/workspace/stat?sessionId=' + encodeURIComponent(sessionId)
+            + '&paths=' + encodeURIComponent(JSON.stringify(unique.slice(0, 200))), { headers: { accept: 'application/json' } })
+          if (!response.ok) return
+          const data = await response.json()
+          const files = data !== null && typeof data === 'object' && data.files !== undefined && data.files !== null ? data.files : {}
+          for (const [path, info] of Object.entries(files)) {
+            if (info !== null && typeof info === 'object' && typeof info.mtimeMs === 'number') {
+              imageVersionCache.set(imageVersionKey(path), info.mtimeMs)
+            }
+          }
+        } catch {}
+      }
+
+      /**
+       * 扫描预览里的本地图片，按 Host 上的 mtime 更新 src 上的 ?v=（文件被外部替换后能刷新）。
+       * @param root - 预览根节点。
+       * @param sessionId - 当前会话。
+       * @returns 无。
+       */
+      async function refreshPreviewImageVersions(root, sessionId) {
+        if (root === null || root === undefined || sessionId === '') return
+        const entries = []
+        for (const image of Array.from(root.querySelectorAll('img'))) {
+          const src = image.getAttribute('src') ?? ''
+          if (src.includes('api/file?') === false) continue
+          let url
+          try {
+            url = new URL(src, document.baseURI)
+          } catch {
+            continue
+          }
+          const path = url.searchParams.get('path')
+          if (path === null || path === '') continue
+          entries.push({ image, url, path })
+        }
+        if (entries.length === 0) return
+        await fetchImageVersions(sessionId, entries.map((entry) => entry.path))
+        for (const entry of entries) {
+          const version = imageVersionCache.get(imageVersionKey(entry.path))
+          if (typeof version !== 'number') continue
+          const value = String(Math.round(version))
+          if (entry.url.searchParams.get('v') === value) continue
+          entry.url.searchParams.set('v', value)
+          entry.image.setAttribute('src', entry.url.href)
+        }
+      }
 /** 图片灯箱（与 Obsidian 内置 lightbox 一致：90% 黑底 + 等比适配 + 文件名标题栏）。 */
 function openImageLightbox(src, title) {
   const existing = document.querySelector('.gh-md-lightbox')
@@ -738,7 +802,7 @@ function installImageLightbox() {
           const directory = absolutePath.slice(0, Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\')) + 1)
           const absolute = /^[a-z]:[\\/]/i.test(decoded) ? decoded : `${directory}${decoded}`
           try {
-            return new URL(`api/file?path=${encodeURIComponent(absolute)}`, doc.baseURI).href
+            return new URL(`api/file?path=${encodeURIComponent(absolute)}${imageVersionParam(absolute)}`, doc.baseURI).href
           } catch {
             return undefined
           }
@@ -2479,12 +2543,48 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           const directory = sourcePath.slice(0, Math.max(sourcePath.lastIndexOf('/'), sourcePath.lastIndexOf('\\')) + 1)
           const absolute = /^[a-z]:[\\/]/i.test(decoded) ? decoded : `${directory}${decoded}`
           try {
-            return new URL(`api/file?path=${encodeURIComponent(absolute)}`, document.baseURI).href
+            return new URL(`api/file?path=${encodeURIComponent(absolute)}${imageVersionParam(absolute)}`, document.baseURI).href
           } catch {
             return undefined
           }
         }
         sourcePathRef.current = sourcePath
+
+        // 图片版本：打开文档、内容重载、切回窗口时按 Host 上的 mtime 更新 /api/file 的 ?v=，
+        // 否则 /api/file 的 immutable 缓存会让替换过的图片一直显示旧内容。
+        // 预览是异步挂载的（占位 → CM6/静态），所以这里轮询等图片真正出现在 DOM 里。
+        React.useEffect(() => {
+          let cancelled = false
+          let attempts = 0
+          const currentRoot = () => {
+            const staticRoot = rootRef.current
+            if (staticRoot !== null && staticRoot !== undefined) return staticRoot
+            const cm6Root = cm6HostRef.current
+            return cm6Root === null || cm6Root === undefined ? null : cm6Root
+          }
+          const tick = () => {
+            if (cancelled === true) return
+            const root = currentRoot()
+            if (root !== null && root.querySelector('img') !== null) {
+              void refreshPreviewImageVersions(root, sessionId)
+              return
+            }
+            attempts += 1
+            if (attempts < 60) window.setTimeout(tick, 250)
+          }
+          tick()
+          return () => { cancelled = true }
+        }, [cm6Loaded, editable, docText, sessionId])
+
+        React.useEffect(() => {
+          const onFocus = () => {
+            const staticRoot = rootRef.current
+            const root = staticRoot !== null && staticRoot !== undefined ? staticRoot : cm6HostRef.current
+            void refreshPreviewImageVersions(root, sessionId)
+          }
+          window.addEventListener('focus', onFocus)
+          return () => window.removeEventListener('focus', onFocus)
+        }, [sessionId])
 
         React.useEffect(() => () => {
           aliveRef.current = false

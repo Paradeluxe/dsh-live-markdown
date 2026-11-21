@@ -342,6 +342,30 @@ async function serveWorkspaceApi(ctx, req, res, pathname, search) {
       const file = await readWorkspaceFile(root, search.get('path') ?? '')
       return sendJson(res, 200, file)
     }
+    if (action === 'stat' && req.method === 'GET') {
+      // 图片版本探测：客户端拿 mtimeMs 给 /api/file 加 ?v= 破浏览器缓存（该路由是 immutable）。
+      const sessionId = search.get('sessionId') ?? ''
+      const root = workspaceRootOf(ctx, sessionId)
+      if (root === null) return sendJson(res, 404, { error: 'workspace-unknown' })
+      let requested = []
+      try {
+        const parsed = JSON.parse(search.get('paths') ?? '[]')
+        if (Array.isArray(parsed)) requested = parsed
+      } catch {
+        requested = []
+      }
+      const files = {}
+      for (const entry of requested.slice(0, 400)) {
+        if (typeof entry !== 'string' || entry === '') continue
+        const target = resolveInside(root, entry)
+        if (target === null) continue
+        try {
+          const info = await stat(target)
+          if (info.isFile()) files[entry] = { mtimeMs: info.mtimeMs, size: info.size }
+        } catch {}
+      }
+      return sendJson(res, 200, { files })
+    }
     if (action === 'asset' && req.method === 'POST') {
       const body = await readJsonBody(req)
       const root = workspaceRootOf(ctx, body.sessionId)

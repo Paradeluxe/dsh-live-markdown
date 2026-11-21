@@ -446,6 +446,19 @@ Measured in the real GUI with a 2000x1125 image of 2 px black/white stripes:
 
 This covers the case where the image is still below its native resolution; beyond that, upscaling is soft by nature.
 
+## Image cache invalidation (1.3.4)
+
+Reproduced in the real GUI: a red 240x120 PNG rendered in the live preview, then overwritten (same path, same size) with blue - the preview stayed red after clicking the reload tool, and only a full page reload showed blue (/api/file answers cache-control: private, max-age=31536000, immutable).
+
+After the fix (gui-image-cache-check.mjs, 7 assertions):
+
+- the rendered image URL carries &v=<mtime>;
+- the initial render is red;
+- an external replacement is still red before refreshing;
+- clicking reload changes v (…1707 -> …8509) and the preview renders blue;
+- overwriting again with green and dispatching window focus updates the preview without clicking anything;
+- no page errors.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
