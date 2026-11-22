@@ -519,6 +519,14 @@ Obsidian 1.15.1 reading view on the same vault: h1 25.888px/700/31.0656, h2 23.3
 
 Fixture with a heading, inline code, link, blockquote, table, hr, task list and a 120x80 image, measured in Obsidian reading view and in the plugin: inline code 14px/21px/2px 4px/4px radius, blockquote 2px bar + 24px indent with body colour, hr 32px vertical margins, checkbox 16x16, image 120x80 (natural), table cells 4px 8px + 1px border, links underlined. GUI PARITY 9/9.
 
+## Missing image note (1.3.15)
+
+Opening a document that references figures/does_not_exist.png produces a dashed note reading "图片无法加载：does_not_exist.png" whose title is the resolved absolute path. GUI MISSING IMAGE 4/4.
+
+## Regenerated manuscript (93 KB, 150 long lines)
+
+Re-ran the whole-document pass after the manuscript was regenerated: three figures render (316x500, no placeholder), inter-block gaps 24px, no horizontal overflow; typing 15 ms average (18 ms worst), cursor moves ~16 ms.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

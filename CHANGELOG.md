@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.15
+
+- A failed image now names the file instead of the alt text ("图片无法加载：fig1_merged_grid_xlast.png") and puts the absolute path in the element title, so a wrong/renamed path is identifiable without DevTools.
+- Measured the regenerated 93 KB manuscript in the live preview: three figures still render (316x500, no placeholder), 24px paragraph gaps, no horizontal overflow; typing latency averages 15 ms (worst 18 ms) and cursor moves ~16 ms, so long lines do not slow editing.
+- New gui-missing-image-check.mjs (4 assertions).
+
 ## 1.3.14
 
 - Structural parity with Obsidian reading view, measured on the same fixture: inline code 14px/21px with 2px 4px padding (was .92em/0 2px), blockquote indent 24px (was 12px, nested +16px per level) with body text colour instead of muted, hr vertical margins 32px (was 16px), task checkbox 16x16 (was 14x14). Static renderer blockquote padding 14 -> 24px too.

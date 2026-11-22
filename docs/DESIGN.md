@@ -2822,3 +2822,17 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 **改动**：`src/cm6-entry.js` 的 `.gh-md-lp-code`（`.92em` → `14px`，内边距 `0 2px` → `2px 4px`）、`.gh-md-lp-quote`（`padding-left: 12px` → `24px`，去掉 `color: label-secondary`，depth-2/3 改为 40/56px）、`.gh-md-cm6-hr`（`margin: 16px 0` → `32px 0`）、`.gh-md-lp-task`（14px → 16px）；`client.js` 静态渲染的 blockquote `padding-left: 14px` → `24px`、`margin: 16px 0 0` → `16px 0`。
 
 **注意**：行内代码底色保留半透明灰（`rgb(175 184 193 / 20%)`）而不是 Obsidian 的 #fafafa，这样深色主题下也成立；这是唯一刻意不一致的一项。
+
+---
+
+## 169. v1.3.15：缺图说明的可诊断性
+
+`ImageWidget.toDOM()` 的 error 处理先重试一次（加 `retry=` 时间戳绕过缓存），两次都失败才落占位。占位文字从 `alt` 改为从图片 URL 的 `path` 参数里取**文件名**，并把完整绝对路径写进 `title`：
+
+```js
+const filePath = new URL(this.src, 'http://localhost/').searchParams.get('path')
+note.textContent = '图片无法加载：' + basename(filePath)
+note.title = filePath
+```
+
+**为什么**：稿子里的 alt 通常是「Figure 1」，用户报「图不显示」时无法判断是路径错、改名还是文件缺失；带上文件名和绝对路径就能自己判断。

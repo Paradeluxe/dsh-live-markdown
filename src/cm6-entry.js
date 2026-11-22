@@ -352,7 +352,21 @@ class ImageWidget extends WidgetType {
         if (wrapper.querySelector('.gh-md-lp-image-missing') === null) {
           const note = document.createElement('span')
           note.className = 'gh-md-lp-image-missing'
-          note.textContent = '图片无法加载：' + (this.alt === '' ? this.src : this.alt)
+          // 说明里给文件名（alt 常常只是 "Figure 1"，看不出是哪张图），完整路径放 title。
+          let label = this.alt === '' ? this.src : this.alt
+          let fullPath = this.src
+          try {
+            const parsed = new URL(this.src, 'http://localhost/')
+            const filePath = parsed.searchParams.get('path')
+            if (typeof filePath === 'string' && filePath !== '') {
+              const normalized = filePath.replace(/\\/gu, '/')
+              const name = normalized.split('/').pop()
+              if (typeof name === 'string' && name !== '') label = name
+              fullPath = filePath
+            }
+          } catch {}
+          note.textContent = '图片无法加载：' + label
+          note.title = fullPath
           wrapper.appendChild(note)
         }
       })
