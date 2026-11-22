@@ -471,6 +471,38 @@ Missing-image path: a document referencing figures/__no_such_file__.png shows th
 
 Regression tests after the bundle rebuild: LP semantics 5/5, image cache 7/7, image zoom 15/15, refresh/conflict 14/14.
 
+## Narrow-pane layout and stacked headings (1.3.7)
+
+Visual pass: the whole manuscript walked screen by screen (22 viewport screenshots at 1054x975, sidebar pane 373px) plus a wide pass at 1400x1000, compared against Obsidian 1.x with CDP on the same vault/file.
+
+Measured before -> after (373px pane): text column 273 -> 316px; document padding 32 -> 18.64px; content padding 18 -> 10.06px; h2 line box 44.5 -> 28.5px with `gh-md-lp-h-tight` (Obsidian 29.1px). Wide pane (1400x1000): padding stays 31.4/17.0px, text column 566px, no cap (unchanged).
+
+Regression: GUI WIDTH 7/7, GUI SPACING 6/6, GUI VISUAL 12/12, LP SEMANTICS 5/5, IMAGE CACHE 7/7, IMAGE ZOOM 15/15.
+
+Unchanged after comparison with Obsidian: 24px blank lines (Obsidian shows them too, 26 empty lines on the first screen), 16px/24px body, h1 25.888px+16px, h3 21.088px+16px, proportional image scaling (fig1 4640x7354 -> 316x501, aspect 0.631 both).
+
+## Figure reading (1.3.8)
+
+Inspected the real DSH desktop window with a native screenshot + synthetic mouse events (no CDP access to that window): the manuscript renders headings/paragraphs and all three figures inline; double-click opened the lightbox but the portrait figures stayed ~475px wide (max-height: 92vh fit).
+
+After the change: single click opens the lightbox; a 4640x7354 figure opens 1012px wide in a 1054px window; a synthetic 800x2400 test figure opens 1152px wide at 1200px (scale 4.17) and is pannable. Landscape images unchanged (zoom test still starts at fit size).
+
+Regression: GUI TALL FIGURE 6/6, GUI IMAGE ZOOM 15/15, GUI LIGHTBOX 9/9, GUI IMAGE CACHE 7/7, GUI VISUAL 12/12, GUI SPACING 6/6, GUI WIDTH 7/7.
+
+## Blank-line collapsing (1.3.9)
+
+Measured in the sidebar pane (373px): collapsed line heights 24/0/0/24/0/0; inter-block gaps before the change 48/72/96px, after it a uniform 24px; scrollHeight 15695 -> 14647. The caret line keeps its height (isActive guard).
+
+Obsidian reference for the same file: 24/48/72px (it renders every blank line), so this behaviour is intentionally more compact than Obsidian live preview.
+
+## Desktop protocol and diagnostics (1.3.10)
+
+Built a minimal Electron harness that registers the same `dsh-app` scheme and forwards to a real Host, then loaded an `<img src="dsh-app://app/api/file?...">` page from `dsh-app://app/`: the request carries no Origin header (logged `originHeader=null`), the forward returns 200 image/png and the element reports naturalWidth 4640. The desktop protocol does **not** block images.
+
+Diagnostics endpoint verified end to end: opening the manuscript in the verify profile writes a JSONL record with baseURI, editable, the resolved sourcePath, the three image markdown lines and the current widget/image counts; scrolling adds records with img src + natural sizes.
+
+Lightbox: single click opens, double click keeps it open (450ms guard) - GUI BEHAVIOR5 8/8, GUI ZOOM STABILITY 4/4, GUI LIGHTBOX 9/9, GUI TALL FIGURE 6/6.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

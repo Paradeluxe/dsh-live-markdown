@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.6'
+      const BUILD_STAMP = '1.3.10'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -232,7 +232,11 @@ function openImageLightbox(src, title) {
     resetTransform()
   })
 
+  // 打开后的极短时间里忽略点击：单击打开灯箱后，用户「双击」的第二次点击会落在遮罩上，
+  // 否则会出现「打开又立刻被关掉」的抖动。
+  const openedAt = performance.now()
   overlay.addEventListener('mousedown', (event) => {
+    if (performance.now() - openedAt < 450) return
     if (event.target === overlay || event.target === bg || event.target === content) {
       event.preventDefault()
       close()
@@ -246,6 +250,30 @@ function openImageLightbox(src, title) {
       event.stopPropagation()
     }
   })
+  /**
+   * 高瘦图（例如 A4 比例的论文插图）：按 96vw 铺满宽度打开，让内容能看清；
+   * 之后滚轮可以缩回「适配尺寸」（scale=1），也能继续放大。
+   */
+  const fitWidthForTallImage = () => {
+    try {
+      if (image.naturalWidth <= 0 || image.naturalHeight <= 0) return
+      const viewportAspect = window.innerWidth / Math.max(1, window.innerHeight)
+      const imageAspect = image.naturalWidth / image.naturalHeight
+      if (imageAspect >= viewportAspect * 0.85) return
+      const targetWidth = window.innerWidth * 0.96
+      const width = image.offsetWidth
+      if (width <= 0) return
+      const nextScale = Math.min(MAX_SCALE, Math.max(1, targetWidth / width))
+      if (nextScale <= 1.0001) return
+      scale = nextScale
+      offsetX = 0
+      offsetY = 0
+      applyTransform()
+    } catch {}
+  }
+  image.addEventListener('load', fitWidthForTallImage, { once: true })
+  if (image.complete === true) fitWidthForTallImage()
+
   document.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('resize', onResize)
   document.body.appendChild(overlay)
@@ -1339,7 +1367,7 @@ function installImageLightbox() {
 .gh-md-document .cm-editor.cm-focused,.gh-md-cm6-document .cm-editor.cm-focused,
 .gh-md-document .cm-editor:focus,.gh-md-cm6-document .cm-editor:focus,
 .gh-md-document .cm-editor:focus-visible,.gh-md-cm6-document .cm-editor:focus-visible{outline:none!important}
-.gh-md-document{min-width:0;overflow-wrap:anywhere;white-space:normal;padding:16px 32px 24px;font-family:var(--gh-md-read-font,"Literata Variable","Noto Serif SC","Source Han Serif SC",Georgia,"SimSun",serif);font-size:var(--gh-md-read-size,16px);line-height:var(--gh-md-read-line,1.75);color:var(--dsw-alias-label-primary)}
+.gh-md-document{min-width:0;overflow-wrap:anywhere;white-space:normal;padding:16px min(32px,5%) 24px;font-family:var(--gh-md-read-font,"Literata Variable","Noto Serif SC","Source Han Serif SC",Georgia,"SimSun",serif);font-size:var(--gh-md-read-size,16px);line-height:var(--gh-md-read-line,1.75);color:var(--dsw-alias-label-primary)}
 .gh-md-document>:first-child,.gh-md-document p:first-child{margin-top:0!important}
 .gh-md-document>:last-child,.gh-md-document p:last-child{margin-bottom:0!important}
 .gh-md-document strong{font-weight:600}
@@ -2593,6 +2621,45 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           tick()
           return () => { cancelled = true }
         }, [cm6Loaded, editable, docText, sessionId])
+
+        // 诊断上报：预览渲染后、以及滚动时，把「结构性事实」写回 Host（插件目录 diagnostics.log）。
+        // 只用于排查图片/路径这类只能在桌面端复现的问题。
+        React.useEffect(() => {
+          let lastPost = 0
+          const post = () => {
+            const now = Date.now()
+            if (now - lastPost < 2500) return
+            lastPost = now
+            try {
+              const collect = Array.from(document.querySelectorAll('.gh-md-document img'))
+                .filter((node) => node.className !== 'cm-widgetBuffer')
+                .slice(0, 12)
+                .map((node) => ({
+                  src: String(node.getAttribute('src') ?? '').slice(0, 240),
+                  natural: [node.naturalWidth, node.naturalHeight],
+                }))
+              const payload = {
+                baseURI: String(document.baseURI),
+                hasEditor: document.querySelector('.cm-editor') !== null,
+                hasBundle: typeof window.__ghMdCm6LivePreview !== 'undefined',
+                editable: editable === true,
+                sourcePath: typeof sourcePath === 'string' ? sourcePath : null,
+                docLength: String(docText ?? '').length,
+                imageLines: String(docText ?? '').split('\n').filter((line) => /^\s*!\[[^\]]*\]\([^)]+\)\s*$/u.test(line)).slice(0, 4),
+                widgets: document.querySelectorAll('.gh-md-lp-image').length,
+                images: collect,
+                placeholder: Array.from(document.querySelectorAll('.gh-md-lp-image-missing')).map((node) => String(node.textContent).slice(0, 120)).slice(0, 4),
+              }
+              void fetch('/github-md/workspace/diagnose', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+            } catch {}
+          }
+          const timer = window.setTimeout(post, 4000)
+          document.addEventListener('scroll', post, true)
+          return () => {
+            window.clearTimeout(timer)
+            document.removeEventListener('scroll', post, true)
+          }
+        }, [docText, sourcePath, cm6Loaded, editable])
 
         React.useEffect(() => {
           const onFocus = () => {

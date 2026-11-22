@@ -2730,3 +2730,53 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 **时序**：`resolveImageForEditor` 原来闭包捕获 `sourcePath`，而 CM6 视图只创建一次 → 恢复标签页/资源后到时图片永远解析成 undefined。修复：读 `sourcePathRef.current`；并在 `sourcePath` 首次可用的 effect 里调用 `createLivePreview().refresh()`（dispatch rebuildEffect）重建装饰。
 
 **可见性**：`ImageWidget` 加载失败重试一次，仍失败显示 `图片无法加载：<alt>` 占位 + 控制台 warning，避免「图看不见」时无从判断。
+
+---
+
+## 161. v1.3.7：窄面板水平内边距与堆叠标题间距
+
+**测量方法**：用 CDP 连上真实的 Obsidian（同一 vault、同一文件），读 `getComputedStyle` / `getBoundingClientRect`，再和插件在同一窄面板宽度下的数值逐项比对。
+
+| 项目 | Obsidian | 修复前 | 修复后 |
+| --- | --- | --- | --- |
+| 文档外层左右内边距（373px 面板） | 32（scroller） | 32 + 18（内容） | min(32, 5%)=18.6 + min(18, 3%)=10.1 |
+| 文本列宽度（373px 面板） | ~309 | 273 | 316 |
+| 堆叠标题（上一行是空行、再上一行是标题）`padding-top` | 0 | 16 | 0 |
+| h2 行盒高度 | 29.1 | 44.5 | 28.5 |
+
+**实现**：`.gh-md-document` 与 `.cm-content` 的水平内边距改成百分比封顶（`min()`），宽面板行为不变；`buildDecorations` 在标题行判断「上方最多隔一行空行的上一行是否也是标题」，是则加 `gh-md-lp-h-tight`，CSS 里 `padding-top: 0 !important`。
+
+**没改的部分**：连续空行按原样逐行显示（Obsidian 同样如此，实测空行 24px、首屏 26 个空行），因此稿件里 2~4 个空行造成的块间距两边一致。
+
+---
+
+## 162. v1.3.8：图片放大入口与高瘦图适配
+
+**问题来源**：用 Windows 窗口截图 + 鼠标事件直接操作 DSH 桌面窗口，逐屏检查 `manuscript/results_Nov18.md`。图片行内只有列宽（窄侧栏 316px），而放大入口是「500ms 内、14px 内的两次点击」，单击无反应；即便打开了灯箱，`max-height: 92vh` 的适配把 4640×7354 的插图压到约 475px 宽——和行内一样看不清。
+
+**修复**：
+
+1. `ImageWidget` 加单击 → `window.__ghMdOpenImageLightbox(src, alt)`；`mousedown` 阻止编辑器把点击当成进入该行源码。
+2. `openImageLightbox()` 增加 `fitWidthForTallImage()`：图片加载后若 `naturalWidth/naturalHeight < 视口宽高比 × 0.85`（明显更高瘦），把 `scale` 提到 `0.96 * innerWidth / offsetWidth`（不超过 8），即铺满窗口宽度；`scale = 1` 仍是「适配尺寸」，所以滚轮缩小、`0` 复位、拖拽 clamp 语义不变，横向图不受影响（不会触发）。
+
+**验证**：`gui-tall-figure-check.mjs` 6/6；`gui-image-zoom-check.mjs` 15/15（横向图仍从适配尺寸开始）；`gui-image-lightbox-check.mjs` 9/9（单击打开 + Esc 后双击仍可）。
+
+---
+
+## 163. v1.3.9：连续空行折叠
+
+**背景**：`manuscript/results_Nov18.md` 有 2~4 个连续空行；Live Preview 逐行显示 → 块间距 48~96px。Obsidian（实测）同样逐行显示（24/48/72px），但用户明确要求紧凑。
+
+**实现**：`buildDecorations` 在每行开头判断：`!isActive && text.trim() === '' && 上一行也是空行` → 给该行加 `Decoration.line({ class: 'gh-md-lp-blank-collapsed' })`；CSS `height/min-height/padding/line-height: 0; overflow: hidden`，并隐藏 `<br>`。带光标的空行因 `isActive` 保留原高度，编辑时自动展开。
+
+**效果**：块间距 48/72/96 → 24px；滚动高度 15695 → 14647（-6.7%）。
+
+---
+
+## 164. v1.3.10：桌面端诊断上报与灯箱双击
+
+**诊断链路**：`client.js` 在预览渲染后 4s、以及滚动时（节流 2.5s）收集 `baseURI / hasEditor / hasBundle / editable / sourcePath / docLength / imageLines / widgets / images(src + naturalWidth/Height) / placeholder`，POST 到 `/github-md/workspace/diagnose`；`index.js` 用 `appendFile` 追加到 `<plugin>/diagnostics.log`（JSONL）。这是排查「只有桌面端图片不显示」的唯一低成本手段（桌面窗口没有 CDP）。
+
+**已用同构 Electron 复现验证过**：从 `dsh-app://app/` 页面请求 `dsh-app://app/api/file?...` 时，`<img>` 请求不带 Origin 头（`request.headers.get("origin")` 为 null），DSH 桌面端 `forwardWebRequest` 的 origin 校验会放行，图片能正常拿到 200 + `naturalWidth`。所以「桌面协议拦图片」这个假设被排除。
+
+**灯箱双击**：单击打开灯箱后，双击的第二次点击落在遮罩上会被当成「点遮罩关闭」。`openImageLightbox` 记录 `openedAt`，450ms 内的遮罩点击直接忽略，保证双击仍停在放大态。

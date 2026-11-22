@@ -13,7 +13,7 @@ import { markdown, insertNewlineContinueMarkup, deleteMarkupBackward } from '@co
 const STYLE_ID = 'gh-md-cm6-lp-style'
 const CSS = `
 .gh-md-cm6-lp { font-family: var(--gh-md-read-font, "Literata Variable", "Noto Serif SC", "Source Han Serif SC", Georgia, "SimSun", serif); font-size: var(--gh-md-read-size, 16px); line-height: var(--gh-md-read-line, 1.65); color: var(--dsw-alias-label-primary, #1f2328); background: transparent; }
-.gh-md-cm6-lp .cm-content, .cm-content.gh-md-cm6-lp { padding: 4px 18px; }
+.gh-md-cm6-lp .cm-content, .cm-content.gh-md-cm6-lp { padding: 4px min(18px, 3%); }
 .gh-md-cm6-lp .cm-line { padding: 0 2px; }
 .gh-md-cm6-lp .cm-editor, .gh-md-cm6-lp .cm-content { outline: none !important; }
 .gh-md-cm6-lp :focus-visible { outline: none !important; }
@@ -39,7 +39,11 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-lp-h4 { font-size: 1.188em; font-weight: 600; line-height: 1.4; padding-top: 16px; }
 .gh-md-cm6-lp .gh-md-lp-h5 { font-size: 1.076em; font-weight: 600; line-height: 1.5; padding-top: 16px; }
 .gh-md-cm6-lp .gh-md-lp-h6 { font-size: 1em; font-weight: 600; line-height: 1.5; }
+/* 与 Obsidian 一致：标题紧跟在另一标题（中间只隔一行空行）时不再叠加顶部间距 */
+.gh-md-cm6-lp .gh-md-lp-h-tight { padding-top: 0 !important; }
 .gh-md-cm6-lp .gh-md-lp-bullet { color: var(--dsw-alias-label-secondary, #57606a); font-weight: 700; }
+.gh-md-cm6-lp .gh-md-lp-blank-collapsed { height: 0 !important; min-height: 0 !important; padding: 0 !important; margin: 0 !important; line-height: 0 !important; overflow: hidden; }
+.gh-md-cm6-lp .gh-md-lp-blank-collapsed br { display: none; }
 .gh-md-cm6-lp .gh-md-lp-image { display: block; margin: 0; }
 .gh-md-cm6-lp .gh-md-lp-image-line { line-height: 0; }
 .gh-md-cm6-lp .gh-md-lp-image-line .cm-widgetBuffer { height: 0 !important; width: 0 !important; }
@@ -322,6 +326,19 @@ class ImageWidget extends WidgetType {
     image.setAttribute('src', this.src)
     image.setAttribute('alt', this.alt)
     if (this.width !== undefined) image.style.width = this.width + 'px'
+    // 单击直接打开灯箱（Obsidian 点图片看大图；双击仍然有效）
+    image.addEventListener('mousedown', (event) => {
+      // 别让编辑器把点击当成"进入该行源码"
+      event.preventDefault()
+      event.stopPropagation()
+    })
+    image.addEventListener('click', (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      try {
+        if (typeof window.__ghMdOpenImageLightbox === 'function') window.__ghMdOpenImageLightbox(this.src, this.alt)
+      } catch {}
+    })
     try {
       image.addEventListener('error', () => {
         if (wrapper.dataset.ghmdRetried !== '1') {
@@ -2961,6 +2978,12 @@ function buildDecorations(state, resolveImage, renderMath, host) {
     }
     ranges.on = true
 
+    // 连续空行：保留第一行作为段落间距，其余折叠为零高度（阅读视图的紧凑观感）。
+    // 光标所在的空行始终保留，方便编辑。
+    if (!isActive && text.trim() === '' && line > 1 && doc.line(line - 1).text.trim() === '') {
+      ranges.push(Decoration.line({ class: 'gh-md-lp-blank-collapsed' }).range(lineInfo.from))
+    }
+
     // frontmatter（文档开头 --- ... ---）
     if (line === 1 && text.trim() === '---') {
       let endLine = 0
@@ -3153,7 +3176,14 @@ function buildDecorations(state, resolveImage, renderMath, host) {
     if (heading !== null) {
       const folded = state.field(foldStateField, false) ?? []
       const isFolded = folded.includes(lineInfo.from)
-      ranges.push(Decoration.line({ class: 'gh-md-lp-h' + heading[1].length }).range(lineInfo.from))
+      // Obsidian：标题上方只有空行、且再上一行仍是标题时，去掉 16px 顶部间距（堆叠标题更紧凑）
+      let tightHeading = false
+      if (line > 1) {
+        let above = line - 1
+        if (/^\s*$/u.test(doc.line(above).text)) above -= 1
+        if (above >= 1) tightHeading = /^#{1,6}\s+/u.test(doc.line(above).text)
+      }
+      ranges.push(Decoration.line({ class: 'gh-md-lp-h' + heading[1].length + (tightHeading ? ' gh-md-lp-h-tight' : '') }).range(lineInfo.from))
       ranges.push(Decoration.widget({ widget: new FoldChevronWidget(isFolded, lineInfo.from), side: -1 }).range(lineInfo.from))
       if (isActive) ranges.push(styleMark('gh-md-lp-syntax').range(lineInfo.from, lineInfo.from + heading[0].length))
       else ranges.push(Decoration.replace({}).range(lineInfo.from, lineInfo.from + heading[0].length))

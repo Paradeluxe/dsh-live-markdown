@@ -6,7 +6,7 @@
  * 工作区根目录内（路径 resolve 后做前缀校验，挡 `..` 与绝对路径逃逸），并限制读写大小。
  */
 import { execFile } from 'node:child_process'
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { get } from 'node:https'
 import { promisify } from 'node:util'
 import { dirname, extname, normalize, resolve as resolvePath, sep } from 'node:path'
@@ -334,6 +334,23 @@ async function serveWorkspaceApi(ctx, req, res, pathname, search) {
       await collectMarkdownFiles(root, '', 0, files)
       files.sort((a, b) => b.mtimeMs - a.mtimeMs || a.path.localeCompare(b.path))
       return sendJson(res, 200, { root, files })
+    }
+    if (action === 'diagnose' && req.method === 'POST') {
+      // 客户端把「预览里的结构性事实」上报到这里，落在插件目录的 diagnostics.log（JSONL），
+      // 专门用来排查「图片不显示」这类只能在实际桌面端复现的问题。
+      let body = ''
+      req.setEncoding('utf8')
+      req.on('data', (chunk) => {
+        if (body.length < 200000) body += chunk
+      })
+      req.on('end', () => {
+        try {
+          const record = { at: new Date().toISOString(), data: JSON.parse(body === '' ? '{}' : body) }
+          void appendFile(new URL('./diagnostics.log', import.meta.url), JSON.stringify(record) + '\n', 'utf8')
+        } catch {}
+        sendJson(res, 200, { ok: true })
+      })
+      return
     }
     if (action === 'read' && req.method === 'GET') {
       const sessionId = search.get('sessionId') ?? ''

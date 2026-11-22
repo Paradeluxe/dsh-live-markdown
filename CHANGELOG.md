@@ -2,6 +2,16 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.10 — reading the manuscript end to end on the real desktop window
+
+Visual pass over `manuscript/results_Nov18.md` in the DSH Desktop window (native screenshots + synthetic mouse), with Obsidian opened on the same vault as the reference. Fixes found by looking:
+
+- **1.3.7 narrow panes**: the document kept a hard-coded 32px horizontal padding plus 18px on the editor content, leaving only 273px of text in a 373px sidebar pane. Both are fluid now (`min(32px, 5%)` / `min(18px, 3%)`): text column 273 -> 316px, wide panes unchanged. Stacked headings follow Obsidian: a heading preceded by one blank line that follows another heading drops its 16px top padding (h2 box 44.5 -> 28.5px, Obsidian 29.1).
+- **1.3.8 figures**: a single click on a block image now opens the lightbox (previously only a fast double click), and tall figures open at 96vw instead of being squeezed by `max-height: 92vh` (475 -> 1012px in a 1054px window).
+- **1.3.9 blank lines**: runs of blank lines collapse the reading-view way - the first keeps its 24px paragraph gap, the rest fold to zero height; the caret line is never collapsed. Inter-block gaps 48/72/96 -> 24px, document 6.7% shorter. (Obsidian live preview shows every blank line; this deviates on purpose.)
+- **1.3.10 diagnostics**: the client now posts structural facts (baseURI, editor/editable state, resolved sourcePath, image markdown lines, widget count, img src + natural size, placeholder text) to `POST /github-md/workspace/diagnose`, which the host appends to `<plugin>/diagnostics.log`. Needed to diagnose desktop-only "images missing" reports.
+- 1.3.10 also keeps the lightbox open when the opening gesture is a double click (the second click lands on the overlay; clicks within 450ms of opening are ignored).
+
 ## 1.0.3
 
 - Root cause of the typing-time flicker: the host preview rebuilds the whole preview component whenever the file changes, so the 200 ms autosave tore the editor down and rebuilt it continuously.
