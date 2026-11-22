@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.5'
+      const BUILD_STAMP = '1.3.6'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -2485,6 +2485,8 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             return false
           }
         })
+        /** CM6 bundle 加载失败或超时：放弃等待，退回静态渲染（此前只引用未定义，会直接抛 ReferenceError）。 */
+        const [cm6GaveUp, setCm6GaveUp] = React.useState(false)
         const [editable, setEditable] = React.useState(false)
         /** 是否已确认「可写/只读」：确认前不要先渲染静态排版（与编辑器排版不同，会被看成样式错误）。 */
         const [editableKnown, setEditableKnown] = React.useState(false)
@@ -2531,7 +2533,10 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         const resolveImageForEditor = (src) => {
           if (typeof src !== 'string' || src === '') return undefined
           if (isAbsoluteUrl(src)) return src
+          // 必须读 ref：CM6 视图只创建一次，闭包里的 sourcePath 可能是 undefined（恢复标签页时资源后到）。
+          const sourcePath = sourcePathRef.current
           if (typeof sourcePath !== 'string' || sourcePath === '') return undefined
+          void sourcePath
           const raw = src.split(/[?#]/)[0]
           let decoded
           try {
@@ -2549,6 +2554,19 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           }
         }
         sourcePathRef.current = sourcePath
+
+        // 文档绝对路径后到时（恢复标签页 / 资源异步加载），CM6 的图片解析器才有值：
+        // 这里重建一次装饰，让图片 widget 真正生成。
+        const cm6PathRef = React.useRef(undefined)
+        React.useEffect(() => {
+          if (typeof sourcePath !== 'string' || sourcePath === '') return
+          if (cm6PathRef.current === sourcePath) return
+          cm6PathRef.current = sourcePath
+          const instance = cm6ViewRef.current
+          if (instance !== null && instance !== undefined && typeof instance.refresh === 'function') {
+            instance.refresh()
+          }
+        }, [sourcePath, cm6Loaded])
 
         // 图片版本：打开文档、内容重载、切回窗口时按 Host 上的 mtime 更新 /api/file 的 ?v=，
         // 否则 /api/file 的 immutable 缓存会让替换过的图片一直显示旧内容。
@@ -2619,10 +2637,25 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
           let alive = true
           // 测试环境可以关掉 CM6（旧 harness 仍验证 CM5 fallback）。
           if (window.__ghMdCm6Disable === true) return undefined
+          let gaveUpTimer = 0
           ensureLivePreviewScript().then(() => {
-            if (alive && window.__ghMdCm6LivePreview !== undefined) setCm6Loaded(true)
-          }, () => {})
-          return () => { alive = false }
+            if (alive && window.__ghMdCm6LivePreview !== undefined) {
+              window.clearTimeout(gaveUpTimer)
+              setCm6Loaded(true)
+              return
+            }
+            if (alive) setCm6GaveUp(true)
+          }, () => {
+            if (alive) setCm6GaveUp(true)
+          })
+          // 兜底：12s 还没就绪就别一直占位（宁可先用静态渲染）
+          gaveUpTimer = window.setTimeout(() => {
+            if (alive && window.__ghMdCm6LivePreview === undefined) setCm6GaveUp(true)
+          }, 12000)
+          return () => {
+            alive = false
+            window.clearTimeout(gaveUpTimer)
+          }
         }, [])
 
         // 可写文件才切到 CM6 编辑器；只读文件继续用旧的只读渲染。

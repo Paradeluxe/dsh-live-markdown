@@ -44,6 +44,7 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-lp-image-line { line-height: 0; }
 .gh-md-cm6-lp .gh-md-lp-image-line .cm-widgetBuffer { height: 0 !important; width: 0 !important; }
 .gh-md-cm6-lp .gh-md-lp-image img { max-width: 100%; max-height: none; border-radius: 4px; vertical-align: middle; cursor: zoom-in; display: block; }
+.gh-md-cm6-lp .gh-md-lp-image-missing { display: block; box-sizing: border-box; max-width: 100%; margin: 6px 0; padding: 10px 12px; border: 1px dashed var(--gh-md-border, rgb(0 0 0 / 18%)); border-radius: 4px; color: var(--gh-md-muted, #8a8a8a); font-size: .85em; line-height: 1.5; word-break: break-all; }
 .gh-md-cm6-code { position: relative; margin: 8px 0; border: none; border-radius: 4px; overflow: hidden; background: var(--dsw-alias-bg-layer-1, #f6f8fa); }
 .gh-md-cm6-lp .gh-md-cm6-code-head { position: absolute; top: 6px; right: 10px; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0; font-size: 11px; color: var(--dsw-alias-label-secondary, #57606a); font-family: var(--dsw-font, sans-serif); }
 .gh-md-cm6-lp .gh-md-cm6-code-copy { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 4px; opacity: 0; transition: opacity .12s ease; }
@@ -321,6 +322,24 @@ class ImageWidget extends WidgetType {
     image.setAttribute('src', this.src)
     image.setAttribute('alt', this.alt)
     if (this.width !== undefined) image.style.width = this.width + 'px'
+    try {
+      image.addEventListener('error', () => {
+        if (wrapper.dataset.ghmdRetried !== '1') {
+          wrapper.dataset.ghmdRetried = '1'
+          const separator = this.src.includes('?') ? '&' : '?'
+          image.setAttribute('src', this.src + separator + 'retry=' + String(Date.now()))
+          return
+        }
+        // 两次都失败：留一个能看见的说明，别只留空白；同时把地址打进控制台方便排查。
+        console.warn('[gh-md-image] failed to load', this.src)
+        if (wrapper.querySelector('.gh-md-lp-image-missing') === null) {
+          const note = document.createElement('span')
+          note.className = 'gh-md-lp-image-missing'
+          note.textContent = '图片无法加载：' + (this.alt === '' ? this.src : this.alt)
+          wrapper.appendChild(note)
+        }
+      })
+    } catch {}
     wrapper.appendChild(image)
     return wrapper
   }
@@ -4756,6 +4775,12 @@ export function createLivePreview(options) {
   return {
     view,
     flushChanges,
+    // 解析器（图片/嵌入）就绪后重建装饰：CM6 只建一次，路径是后到的时候要能补上图片 widget。
+    refresh() {
+      try {
+        view.dispatch({ effects: rebuildEffect.of(null) })
+      } catch {}
+    },
     destroy() {
       flushChanges()
       try {

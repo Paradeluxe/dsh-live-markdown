@@ -2720,3 +2720,13 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 修复：把 `imageVersionCache` / `imageVersionKey` / `imageVersionParam` 这三个纯函数移进片段内（与 `resolveImage` 同作用域）；`fetchImageVersions` / `refreshPreviewImageVersions` 依赖网络与 DOM，仍留在片段外。
 
 教训：凡是渲染片段里会调用的东西，必须定义在片段标记之间。
+
+---
+
+## 160. v1.3.6：CM6 失败路径与图片解析的时序
+
+**崩溃**：`cm6WaitingForReady` 里 `cm6GaveUp` 只在 `cm6Loaded === false` 分支被求值，所以它未定义这件事在正常启动时被短路掩盖；bundle 失败时立刻 `ReferenceError`，槽位崩溃（既无编辑器也无静态回退）。修复：真正的 React state + 加载失败/12s 超时置位，之后走静态渲染。
+
+**时序**：`resolveImageForEditor` 原来闭包捕获 `sourcePath`，而 CM6 视图只创建一次 → 恢复标签页/资源后到时图片永远解析成 undefined。修复：读 `sourcePathRef.current`；并在 `sourcePath` 首次可用的 effect 里调用 `createLivePreview().refresh()`（dispatch rebuildEffect）重建装饰。
+
+**可见性**：`ImageWidget` 加载失败重试一次，仍失败显示 `图片无法加载：<alt>` 占位 + 控制台 warning，避免「图看不见」时无从判断。

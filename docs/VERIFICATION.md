@@ -463,6 +463,14 @@ After the fix (gui-image-cache-check.mjs, 7 assertions):
 
 1.3.4 broke npm run smoke: the extracted render snippet referenced imageVersionParam, which was defined outside the snippet markers, so resolveImage threw and the "local image is rewritten to /api/file" assertion failed. Moving the pure helpers inside the snippet restores RENDER OK, and run-all-checks.mjs reports ALL CHECKS PASS again.
 
+## CM6 failure and image timing (1.3.6)
+
+Reproduced by aborting the vendor bundle request (Playwright route abort): before the fix the page threw `ReferenceError: cm6GaveUp is not defined` and the slot crashed with nothing rendered; after the fix the same scenario renders the static document (heading/paragraph/image styles compact, all three manuscript figures load, naturalWidth 4640/4640/3548).
+
+Missing-image path: a document referencing figures/__no_such_file__.png shows the dashed placeholder "图片无法加载：figures/__no_such_file__.png" after one retry, and logs `[gh-md-image] failed to load <url>`.
+
+Regression tests after the bundle rebuild: LP semantics 5/5, image cache 7/7, image zoom 15/15, refresh/conflict 14/14.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

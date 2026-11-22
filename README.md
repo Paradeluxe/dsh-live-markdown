@@ -714,3 +714,11 @@ MIT — see [LICENSE](LICENSE).
 现在把纯函数 helper（`imageVersionCache` / `imageVersionKey` / `imageVersionParam`）放进片段内，异步的 stat/刷新逻辑留在片段外。**用户可见行为与 1.3.4 完全一致**（缓存击穿地址与刷新时机不变）。
 
 验证：`render-smoke` → RENDER OK，`run-all-checks` → ALL CHECKS PASS；图片缓存流程 7/7（红 → 点重新读取 → 变蓝；改绿后切回窗口自动变绿）。
+
+## 1.3.6（v1.3.6）：CM6 bundle 加载失败会让整个预览崩掉 + 图片失败有反馈了
+
+**真正的崩溃 bug**：`MarkdownBody` 里引用了一个从未定义的 `cm6GaveUp`。平时 CM6 bundle 已经预热、`cm6Loaded` 为 true，短路求值不会碰到它；一旦 bundle 加载失败（网络/缓存/文件问题），渲染时就会抛 `ReferenceError: cm6GaveUp is not defined`，整个文档槽位直接崩，既没有编辑器也没有静态回退。现在它是一个真正的状态：加载失败 → 置 true；另有 12s 兜底超时。之后就退回静态渲染（标题、段落、图片都正常）。
+
+**图片解析器改为读 ref**：CM6 视图只创建一次，原来的 `resolveImage` 闭包捕获了首次渲染的 `sourcePath`；恢复标签页/资源后到时它是 `undefined`，图片就会一直解析失败。现在读 `sourcePathRef.current`，并在路径到位后调用 `refresh()` 重建装饰，把图片 widget 补出来。
+
+**图片加载失败不再是一片空白**：失败先自动重试一次（带 `retry` 参数），仍失败就显示虚线占位「图片无法加载：<路径>」，并在控制台打 `[gh-md-image] failed to load <url>`——这样「图看不见」能立刻区分是路径解析、缓存还是文件不存在。
