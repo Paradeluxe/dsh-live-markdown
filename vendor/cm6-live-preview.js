@@ -34,7 +34,7 @@ var __ghMdCm6LivePreview=(()=>{var lo=Object.defineProperty;var gO=Object.getOwn
 .gh-md-cm6-lp .cm-editor.cm-focused { outline: none !important; }
 .gh-md-cm6-lp .cm-cursor { border-left: 1.5px solid var(--dsw-alias-label-primary, #1f2328); }
 .gh-md-cm6-lp .gh-md-lp-syntax { color: var(--dsw-alias-label-tertiary, #8c959f); }
-.gh-md-cm6-lp .gh-md-lp-strong { font-weight: 700; }
+.gh-md-cm6-lp .gh-md-lp-strong { font-weight: 600; }
 .gh-md-cm6-lp .gh-md-lp-em { font-style: italic; }
 .gh-md-cm6-lp .gh-md-lp-strike { text-decoration: line-through; }
 .gh-md-cm6-lp .gh-md-lp-code { background: rgb(175 184 193 / 20%); border-radius: 4px; padding: 0 2px; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: .92em; }
@@ -47,10 +47,10 @@ var __ghMdCm6LivePreview=(()=>{var lo=Object.defineProperty;var gO=Object.getOwn
 .gh-md-cm6-lp .gh-md-lp-task-wrap { display: inline-flex; align-items: center; }
 .gh-md-cm6-lp .gh-md-cm6-fold-hidden { height: 0; overflow: hidden; }
 .gh-md-cm6-lp .gh-md-lp-h1 { font-size: 1.618em; font-weight: 700; line-height: 1.2; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h2 { font-size: 1.462em; font-weight: 600; line-height: 1.2; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h3 { font-size: 1.318em; font-weight: 600; line-height: 1.3; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h4 { font-size: 1.188em; font-weight: 600; line-height: 1.4; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h5 { font-size: 1.076em; font-weight: 600; line-height: 1.5; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h2 { font-size: 1.462em; font-weight: 680; line-height: 1.2; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h3 { font-size: 1.318em; font-weight: 660; line-height: 1.3; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h4 { font-size: 1.188em; font-weight: 640; line-height: 1.4; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h5 { font-size: 1.076em; font-weight: 620; line-height: 1.5; padding-top: 16px; }
 .gh-md-cm6-lp .gh-md-lp-h6 { font-size: 1em; font-weight: 600; line-height: 1.5; }
 /* \u4E0E Obsidian \u4E00\u81F4\uFF1A\u6807\u9898\u7D27\u8DDF\u5728\u53E6\u4E00\u6807\u9898\uFF08\u4E2D\u95F4\u53EA\u9694\u4E00\u884C\u7A7A\u884C\uFF09\u65F6\u4E0D\u518D\u53E0\u52A0\u9876\u90E8\u95F4\u8DDD */
 .gh-md-cm6-lp .gh-md-lp-h-tight { padding-top: 0 !important; }

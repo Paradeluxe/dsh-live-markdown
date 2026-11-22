@@ -2,6 +2,11 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.13
+
+- Heading weights now match Obsidian exactly: h2 680, h3 660, h4 640, h5 620 (h1 700 and h6 600 already matched), sizes stay at 1.618/1.462/1.318/1.188/1.076/1em with line-heights 1.2/1.2/1.3/1.4/1.5/1.5. Applied to both the static renderer and the CM6 live preview; bold is 600 to match calc(400 + 200).
+- New gui-typography-check.mjs (8 assertions) pins h1-h6 and body size/weight/line-height against the Obsidian baseline.
+
 ## 1.3.12
 
 - The 1.3.11 external-change watcher is skipped in jsdom: the integration harnesses stub the read API, so the poll treated the stub as a disk update and overwrote typed text (harness-cm6-integration "save after typing", harness-editor-undo). Real browsers are unaffected.

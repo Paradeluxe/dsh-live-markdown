@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.12'
+      const BUILD_STAMP = '1.3.13'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -1372,11 +1372,12 @@ function installImageLightbox() {
 .gh-md-document>:last-child,.gh-md-document p:last-child{margin-bottom:0!important}
 .gh-md-document strong{font-weight:600}
 .gh-md-document h1,.gh-md-document h2,.gh-md-document h3{margin:32px 0 16px}
-.gh-md-document h1{font-family:inherit;font-size:24px;line-height:34px;font-weight:700}
-.gh-md-document h2{font-family:inherit;font-size:22px;line-height:32px;font-weight:700}
-.gh-md-document h3{font-family:inherit;font-size:20px;line-height:29px;font-weight:700}
-.gh-md-document h4{font-family:inherit;font-size:16px;line-height:28px;font-weight:600;margin:16px 0}
-.gh-md-document h5,.gh-md-document h6{font-family:inherit;font-size:16px;line-height:28px;font-weight:600;margin:16px 0}
+.gh-md-document h1{font-family:inherit;font-size:1.618em;line-height:1.2;font-weight:700}
+.gh-md-document h2{font-family:inherit;font-size:1.462em;line-height:1.2;font-weight:680}
+.gh-md-document h3{font-family:inherit;font-size:1.318em;line-height:1.3;font-weight:660}
+.gh-md-document h4{font-family:inherit;font-size:1.188em;line-height:1.4;font-weight:640;margin:16px 0}
+.gh-md-document h5{font-family:inherit;font-size:1.076em;line-height:1.5;font-weight:620;margin:16px 0}
+.gh-md-document h6{font-family:inherit;font-size:1em;line-height:1.5;font-weight:600;margin:16px 0}
 /* 悬停标题时在左侧沟槽显示 Markdown 井号数量（Typora 式，不改变布局）。 */
 .gh-md-document :is(h1,h2,h3,h4,h5,h6){position:relative}
 .gh-md-document :is(h1,h2,h3,h4,h5,h6)::before{position:absolute;right:100%;top:.18em;padding-right:.55em;color:var(--dsw-alias-label-secondary);font-family:var(--ds-font-family-code);font-size:.6em;font-weight:600;line-height:1;letter-spacing:-.02em;white-space:nowrap;opacity:0;transform:translateX(4px);transition:opacity .12s ease,transform .12s ease;pointer-events:none;user-select:none}

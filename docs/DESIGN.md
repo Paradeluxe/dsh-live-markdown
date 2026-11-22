@@ -2800,3 +2800,15 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 ## 166. v1.3.12：轮询与测试环境的隔离
 
 `harness-*.mjs` 用 jsdom + 桩 `workbenchRequest`：轮询读回的桩内容与编辑器内容不一致，于是被当成「磁盘改了」把用户输入覆盖掉。判断 `navigator.userAgent` 含 `jsdom` 时直接不启动轮询；这也和 `cm6FirstOpenGuard` 用的是同一套环境判定。
+
+---
+
+## 167. v1.3.13：排版基线逐项对齐 Obsidian
+
+**基线来源**：Obsidian 1.15.1 阅读视图 `getComputedStyle(document.body)` 的 CSS 变量——`--h1-weight: 700 / --h2: 680 / --h3: 660 / --h4: 640 / --h5: 620 / --h6: 600`，`--h1-size: 1.618em … --h6-size: 1em`，`--h1-line-height: 1.2 / --h2: 1.2 / --h3: 1.3 / --h4: 1.4 / --h5: 1.5 / --h6: 1.5`，`--font-text-size: 16px`，`--line-height-normal: 1.5`，`--bold-weight: calc(400 + 200)`。
+
+**差距**：字号和行高本来就一致（之前已经按 em 写），字重则全部写成 600。
+
+**修复**：`src/cm6-entry.js` 的 `.gh-md-lp-h2…h5` 与 `client.js` 的 `.gh-md-document h2…h5` 改成 680/660/640/620；`.gh-md-lp-strong` 700 → 600。静态渲染同时从固定 px（24/22/20）改为 em 比例。
+
+**回归**：`gui-typography-check.mjs` 逐项断言 h1–h6 + 正文的字号（±0.05px）、字重（精确）、行高（±0.1px）。

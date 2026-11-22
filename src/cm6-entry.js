@@ -21,7 +21,7 @@ const CSS = `
 .gh-md-cm6-lp .cm-editor.cm-focused { outline: none !important; }
 .gh-md-cm6-lp .cm-cursor { border-left: 1.5px solid var(--dsw-alias-label-primary, #1f2328); }
 .gh-md-cm6-lp .gh-md-lp-syntax { color: var(--dsw-alias-label-tertiary, #8c959f); }
-.gh-md-cm6-lp .gh-md-lp-strong { font-weight: 700; }
+.gh-md-cm6-lp .gh-md-lp-strong { font-weight: 600; }
 .gh-md-cm6-lp .gh-md-lp-em { font-style: italic; }
 .gh-md-cm6-lp .gh-md-lp-strike { text-decoration: line-through; }
 .gh-md-cm6-lp .gh-md-lp-code { background: rgb(175 184 193 / 20%); border-radius: 4px; padding: 0 2px; font-family: var(--dsw-font-mono, ui-monospace, monospace); font-size: .92em; }
@@ -34,10 +34,10 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-lp-task-wrap { display: inline-flex; align-items: center; }
 .gh-md-cm6-lp .gh-md-cm6-fold-hidden { height: 0; overflow: hidden; }
 .gh-md-cm6-lp .gh-md-lp-h1 { font-size: 1.618em; font-weight: 700; line-height: 1.2; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h2 { font-size: 1.462em; font-weight: 600; line-height: 1.2; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h3 { font-size: 1.318em; font-weight: 600; line-height: 1.3; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h4 { font-size: 1.188em; font-weight: 600; line-height: 1.4; padding-top: 16px; }
-.gh-md-cm6-lp .gh-md-lp-h5 { font-size: 1.076em; font-weight: 600; line-height: 1.5; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h2 { font-size: 1.462em; font-weight: 680; line-height: 1.2; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h3 { font-size: 1.318em; font-weight: 660; line-height: 1.3; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h4 { font-size: 1.188em; font-weight: 640; line-height: 1.4; padding-top: 16px; }
+.gh-md-cm6-lp .gh-md-lp-h5 { font-size: 1.076em; font-weight: 620; line-height: 1.5; padding-top: 16px; }
 .gh-md-cm6-lp .gh-md-lp-h6 { font-size: 1em; font-weight: 600; line-height: 1.5; }
 /* 与 Obsidian 一致：标题紧跟在另一标题（中间只隔一行空行）时不再叠加顶部间距 */
 .gh-md-cm6-lp .gh-md-lp-h-tight { padding-top: 0 !important; }

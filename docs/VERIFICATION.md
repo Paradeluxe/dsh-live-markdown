@@ -511,6 +511,10 @@ Real GUI: a probe document opened with FIRST-VERSION, then rewritten on disk to 
 
 run-all-checks reported FAILED: harness-editor-undo.mjs, harness-cm6-integration.mjs ("save after typing: false") after 1.3.11. The watcher now returns early under jsdom; both harnesses pass again and run-all-checks reports ALL CHECKS PASS.
 
+## Typography baseline (1.3.13)
+
+Obsidian 1.15.1 reading view on the same vault: h1 25.888px/700/31.0656, h2 23.392/680/28.0704, h3 21.088/660/27.4144, h4 19.008/640/26.6112, h5 17.216/620/25.824, h6 16/600/24, body 16/400/24. The plugin now matches every one of them (GUI TYPOGRAPHY 8/8); spacing/width/visual suites stay green (6/6, 7/7, 12/12) and render-smoke unchanged.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
