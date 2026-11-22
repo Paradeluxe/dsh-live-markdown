@@ -515,6 +515,10 @@ run-all-checks reported FAILED: harness-editor-undo.mjs, harness-cm6-integration
 
 Obsidian 1.15.1 reading view on the same vault: h1 25.888px/700/31.0656, h2 23.392/680/28.0704, h3 21.088/660/27.4144, h4 19.008/640/26.6112, h5 17.216/620/25.824, h6 16/600/24, body 16/400/24. The plugin now matches every one of them (GUI TYPOGRAPHY 8/8); spacing/width/visual suites stay green (6/6, 7/7, 12/12) and render-smoke unchanged.
 
+## Structural parity (1.3.14)
+
+Fixture with a heading, inline code, link, blockquote, table, hr, task list and a 120x80 image, measured in Obsidian reading view and in the plugin: inline code 14px/21px/2px 4px/4px radius, blockquote 2px bar + 24px indent with body colour, hr 32px vertical margins, checkbox 16x16, image 120x80 (natural), table cells 4px 8px + 1px border, links underlined. GUI PARITY 9/9.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

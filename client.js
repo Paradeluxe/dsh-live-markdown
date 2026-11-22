@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.13'
+      const BUILD_STAMP = '1.3.14'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -1406,7 +1406,7 @@ function installImageLightbox() {
 .gh-md-document li>*:first-child{margin-top:0}
 .gh-md-document li>*:last-child:not(.gh-md-code-card){margin-bottom:0}
 .gh-md-document hr{display:block;border:none;height:.5px;margin:32px 0;background:var(--dsw-alias-border-l2)}
-.gh-md-document blockquote{border-left:2px solid var(--dsw-alias-label-caption);margin:16px 0 0;padding-left:14px}
+.gh-md-document blockquote{border-left:2px solid var(--dsw-alias-label-caption);margin:16px 0;padding-left:24px}
 .gh-md-document input[type=checkbox]{margin:0 8px 0 0;accent-color:var(--dsw-alias-label-secondary)}
 .gh-md-document pre{margin:16px 0;padding:12px 16px;background:var(--dsw-alias-bg-layer-2);border-radius:6px;overflow:auto;font-family:var(--ds-font-family-code);font-size:calc(12px + var(--dsh-code-font-delta,0px));line-height:calc(19px + var(--dsh-code-font-delta,0px))}
 .gh-md-document pre code{background:transparent;border:0;padding:0;font:inherit}

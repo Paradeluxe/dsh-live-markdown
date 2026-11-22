@@ -2812,3 +2812,13 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 **修复**：`src/cm6-entry.js` 的 `.gh-md-lp-h2…h5` 与 `client.js` 的 `.gh-md-document h2…h5` 改成 680/660/640/620；`.gh-md-lp-strong` 700 → 600。静态渲染同时从固定 px（24/22/20）改为 em 比例。
 
 **回归**：`gui-typography-check.mjs` 逐项断言 h1–h6 + 正文的字号（±0.05px）、字重（精确）、行高（±0.1px）。
+
+---
+
+## 168. v1.3.14：结构元素与 Obsidian 逐项对齐
+
+**基线**（Obsidian 1.15.1 阅读视图，同一份 fixture 实测）：行内代码 14px/21px、`padding 2.1px 4.2px`、圆角 4px、底色 #fafafa；引用块 `border-left: 2px` 强调色 + `padding-left: 24px`、文字颜色与正文一致；`hr` 上下边距 32px；任务复选框 16×16；表格单元 `padding 4px 8px`、边框 1px #e4e4e4；图片按自然尺寸（`max-width: 100%` 不放大）。
+
+**改动**：`src/cm6-entry.js` 的 `.gh-md-lp-code`（`.92em` → `14px`，内边距 `0 2px` → `2px 4px`）、`.gh-md-lp-quote`（`padding-left: 12px` → `24px`，去掉 `color: label-secondary`，depth-2/3 改为 40/56px）、`.gh-md-cm6-hr`（`margin: 16px 0` → `32px 0`）、`.gh-md-lp-task`（14px → 16px）；`client.js` 静态渲染的 blockquote `padding-left: 14px` → `24px`、`margin: 16px 0 0` → `16px 0`。
+
+**注意**：行内代码底色保留半透明灰（`rgb(175 184 193 / 20%)`）而不是 Obsidian 的 #fafafa，这样深色主题下也成立；这是唯一刻意不一致的一项。

@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.14
+
+- Structural parity with Obsidian reading view, measured on the same fixture: inline code 14px/21px with 2px 4px padding (was .92em/0 2px), blockquote indent 24px (was 12px, nested +16px per level) with body text colour instead of muted, hr vertical margins 32px (was 16px), task checkbox 16x16 (was 14x14). Static renderer blockquote padding 14 -> 24px too.
+- Confirmed a small (120x80) image is rendered at its natural size, not stretched: the rule is max-width: 100%, matching Obsidian.
+- New gui-parity-check.mjs (9 assertions) covers inline code, blockquote bar/indent/colour, hr margins, checkbox size, natural image size, table cell padding/border and link underline.
+
 ## 1.3.13
 
 - Heading weights now match Obsidian exactly: h2 680, h3 660, h4 640, h5 620 (h1 700 and h6 600 already matched), sizes stay at 1.618/1.462/1.318/1.188/1.076/1em with line-heights 1.2/1.2/1.3/1.4/1.5/1.5. Applied to both the static renderer and the CM6 live preview; bold is 600 to match calc(400 + 200).
