@@ -2,6 +2,10 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.12
+
+- The 1.3.11 external-change watcher is skipped in jsdom: the integration harnesses stub the read API, so the poll treated the stub as a disk update and overwrote typed text (harness-cm6-integration "save after typing", harness-editor-undo). Real browsers are unaffected.
+
 ## 1.3.11
 
 - External changes now reload the open preview by themselves: every 2.5 s the component re-reads the file (read-only) and, when there are no unsaved edits, replaces the document in place (text, images, collapsed blank lines); with unsaved edits it only raises the existing "外部已修改 · 重新载入" pill instead of clobbering the draft.

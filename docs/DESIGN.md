@@ -2794,3 +2794,9 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 - 不同且是脏状态 → 只设置 `conflictRef` + conflict 提示条（不丢用户改动）。
 
 **代价**：每 2.5s 一次本地文件读取（几十 KB 级），页面隐藏时跳过。
+
+---
+
+## 166. v1.3.12：轮询与测试环境的隔离
+
+`harness-*.mjs` 用 jsdom + 桩 `workbenchRequest`：轮询读回的桩内容与编辑器内容不一致，于是被当成「磁盘改了」把用户输入覆盖掉。判断 `navigator.userAgent` 含 `jsdom` 时直接不启动轮询；这也和 `cm6FirstOpenGuard` 用的是同一套环境判定。

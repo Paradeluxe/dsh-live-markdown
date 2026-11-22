@@ -507,6 +507,10 @@ Lightbox: single click opens, double click keeps it open (450ms guard) - GUI BEH
 
 Real GUI: a probe document opened with FIRST-VERSION, then rewritten on disk to SECOND-VERSION. Without clicking anything the editor showed SECOND-VERSION within ~2 s, no conflict pill appeared (document was clean), and no page errors were logged. Dirty documents are not overwritten - they only get the 已修改 conflict pill.
 
+## Watcher isolation (1.3.12)
+
+run-all-checks reported FAILED: harness-editor-undo.mjs, harness-cm6-integration.mjs ("save after typing: false") after 1.3.11. The watcher now returns early under jsdom; both harnesses pass again and run-all-checks reports ALL CHECKS PASS.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

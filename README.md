@@ -774,3 +774,9 @@ MIT — see [LICENSE](LICENSE).
 实测：外部把 `FIRST-VERSION` 改成 `SECOND-VERSION`，编辑器 2 秒左右自动变成新内容，没有冲突提示。
 
 配套：1.3.10 的诊断上报（`<插件目录>/diagnostics.log`）仍然开着，方便定位桌面端特有的图片问题。
+
+## 1.3.12（v1.3.12）：自动重载不在 jsdom 测试环境里跑
+
+1.3.11 的「外部改动自动跟进」在 jsdom 集成测试里会把测试桩内容当成磁盘更新，导致 `harness-cm6-integration`（save after typing）和 `harness-editor-undo` 失败。现在检测到 jsdom 时不启动这个轮询（真实浏览器不受影响）。
+
+验证：`run-all-checks` ALL CHECKS PASS；GUI 的自动重载 4/4、刷新/冲突 14/14 仍全绿。

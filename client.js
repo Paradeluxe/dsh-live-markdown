@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.11'
+      const BUILD_STAMP = '1.3.12'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -3613,6 +3613,8 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
         // 稿子被外部脚本重新生成（图片同名替换、正文重排）后不需要手动刷新也不会一直看到旧内容。
         React.useEffect(() => {
           if (typeof sourcePath !== 'string' || sourcePath === '' || sessionId === '') return undefined
+          // jsdom 集成测试里没有真实的磁盘读取：轮询会把测试用的桩内容当成「磁盘更新」把文档覆盖回去。
+          if (typeof navigator !== 'undefined' && /jsdom/iu.test(String(navigator.userAgent ?? ''))) return undefined
           let alive = true
           let inFlight = false
           /** 宿主的「自动刷新」开关关掉时，不做外部改动跟进（与内置预览行为一致）。 */
