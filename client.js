@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.10'
+      const BUILD_STAMP = '1.3.11'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -3608,6 +3608,64 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             setSaveMessage(String(error?.message ?? error))
           }
         }
+
+        // 外部改动自动跟进（Obsidian 行为）：没在编辑区块时定期对比磁盘内容，变了就原地重载。
+        // 稿子被外部脚本重新生成（图片同名替换、正文重排）后不需要手动刷新也不会一直看到旧内容。
+        React.useEffect(() => {
+          if (typeof sourcePath !== 'string' || sourcePath === '' || sessionId === '') return undefined
+          let alive = true
+          let inFlight = false
+          /** 宿主的「自动刷新」开关关掉时，不做外部改动跟进（与内置预览行为一致）。 */
+          const autoRefreshEnabled = () => {
+            try {
+              const node = document.querySelector('[data-textpreview-tool="auto-refresh"]')
+              if (node === null) return true
+              return node.getAttribute('aria-pressed') !== 'false'
+            } catch {
+              return true
+            }
+          }
+          const timer = window.setInterval(() => {
+            if (!alive || inFlight) return
+            try {
+              if (document.hidden === true) return
+            } catch {}
+            if (autoRefreshEnabled() === false) return
+            inFlight = true
+            workbenchRequest('read', { sessionId, path: sourcePath }).then((data) => {
+              inFlight = false
+              if (!alive || !aliveRef.current) return
+              const rawText = String(data.content ?? '')
+              const diskText = rawText.replace(/\r\n/gu, '\n')
+              if (diskText === lastDiskTextRef.current) return
+              if (dirtyRef.current === true) {
+                if (conflictRef.current !== true) {
+                  conflictRef.current = true
+                  setSaveState('conflict')
+                  setSaveMessage(tr('editConflict', '外部已修改 · 重新载入'))
+                }
+                return
+              }
+              eolRef.current = rawText.includes('\r\n') ? '\r\n' : '\n'
+              lastDiskTextRef.current = diskText
+              savedTextRef.current = diskText
+              docTextRef.current = diskText
+              setDocText(diskText)
+              const wrapper = cm6ViewRef.current
+              if (wrapper !== null) {
+                try {
+                  wrapper.view.dispatch({ changes: { from: 0, to: wrapper.view.state.doc.length, insert: diskText } })
+                } catch {}
+              }
+            }).catch(() => {
+              inFlight = false
+            })
+          }, 2500)
+          return () => {
+            alive = false
+            window.clearInterval(timer)
+          }
+        }, [sourcePath, sessionId])
 
         /** 窗口当前是否"用户看得见"：看得见时写盘会触发宿主重建预览（闪一下），所以只在看不见时自动写。 */
         const windowLooksVisible = () => {

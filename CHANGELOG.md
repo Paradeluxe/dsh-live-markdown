@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.11
+
+- External changes now reload the open preview by themselves: every 2.5 s the component re-reads the file (read-only) and, when there are no unsaved edits, replaces the document in place (text, images, collapsed blank lines); with unsaved edits it only raises the existing "外部已修改 · 重新载入" pill instead of clobbering the draft.
+- This fixes the most common "images disappeared" case: a tab opened before the manuscript (and its figures) were regenerated kept showing the old text, whose image paths no longer resolved.
+- New gui-auto-reload-check.mjs (4 assertions) registered in the GUI suite.
+
 ## 1.3.10 — reading the manuscript end to end on the real desktop window
 
 Visual pass over `manuscript/results_Nov18.md` in the DSH Desktop window (native screenshots + synthetic mouse), with Obsidian opened on the same vault as the reference. Fixes found by looking:

@@ -503,6 +503,10 @@ Diagnostics endpoint verified end to end: opening the manuscript in the verify p
 
 Lightbox: single click opens, double click keeps it open (450ms guard) - GUI BEHAVIOR5 8/8, GUI ZOOM STABILITY 4/4, GUI LIGHTBOX 9/9, GUI TALL FIGURE 6/6.
 
+## External-change auto reload (1.3.11)
+
+Real GUI: a probe document opened with FIRST-VERSION, then rewritten on disk to SECOND-VERSION. Without clicking anything the editor showed SECOND-VERSION within ~2 s, no conflict pill appeared (document was clean), and no page errors were logged. Dirty documents are not overwritten - they only get the 已修改 conflict pill.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

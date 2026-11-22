@@ -2780,3 +2780,17 @@ img 元素带 will-change: transform 时，Chromium 会为该元素建独立合�
 **已用同构 Electron 复现验证过**：从 `dsh-app://app/` 页面请求 `dsh-app://app/api/file?...` 时，`<img>` 请求不带 Origin 头（`request.headers.get("origin")` 为 null），DSH 桌面端 `forwardWebRequest` 的 origin 校验会放行，图片能正常拿到 200 + `naturalWidth`。所以「桌面协议拦图片」这个假设被排除。
 
 **灯箱双击**：单击打开灯箱后，双击的第二次点击落在遮罩上会被当成「点遮罩关闭」。`openImageLightbox` 记录 `openedAt`，450ms 内的遮罩点击直接忽略，保证双击仍停在放大态。
+
+---
+
+## 165. v1.3.11：外部改动自动跟进
+
+**问题**：用户标签页里的文档是打开那一刻的内容；稿子被脚本重新生成后（图片同名替换、正文重排），旧正文里的图片路径可能已经失效——表现就是「图不显示」，但其实文件是好的。
+
+**实现**：`MarkdownBody` 里每 2.5s `workbenchRequest('read')` 一次（`document.hidden` 时跳过，`inFlight` 去重），与 `lastDiskTextRef` 比较：
+
+- 相同 → 什么都不做；
+- 不同且 `dirtyRef.current === false` → 更新 `lastDiskTextRef / savedTextRef / docTextRef / eol`、`setDocText`、并 dispatch 替换 CM6 文档（图片/折叠装饰随新文档重建）；
+- 不同且是脏状态 → 只设置 `conflictRef` + conflict 提示条（不丢用户改动）。
+
+**代价**：每 2.5s 一次本地文件读取（几十 KB 级），页面隐藏时跳过。
