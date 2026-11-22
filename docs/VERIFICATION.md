@@ -527,6 +527,10 @@ Opening a document that references figures/does_not_exist.png produces a dashed 
 
 Re-ran the whole-document pass after the manuscript was regenerated: three figures render (316x500, no placeholder), inter-block gaps 24px, no horizontal overflow; typing 15 ms average (18 ms worst), cursor moves ~16 ms.
 
+## Responsive width sweep
+
+Same 93 KB manuscript at viewport 960/1100/1280/1500 (content column 388/377/518/610px): horizontal overflow 0 at every width, figures 365/354/486/574px (always <= column and <= natural width), h1 stays 25.888px, paragraph line-height stays 24px, no missing-image placeholder. GUI RESPONSIVE 28/28.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
