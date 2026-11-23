@@ -531,6 +531,12 @@ Re-ran the whole-document pass after the manuscript was regenerated: three figur
 
 Same 93 KB manuscript at viewport 960/1100/1280/1500 (content column 388/377/518/610px): horizontal overflow 0 at every width, figures 365/354/486/574px (always <= column and <= natural width), h1 stays 25.888px, paragraph line-height stays 24px, no missing-image placeholder. GUI RESPONSIVE 28/28.
 
+## Update notice on the desktop protocol (1.3.16)
+
+`gui-update-pill-check.mjs` stubs `fetch` before page boot and answers `/github-md/update/check` with `{hasUpdate:true, latest:"9.9.9", installKind:"git"}`: the pill appears with 更新/说明/×, clicking 更新 POSTs `/github-md/update/apply` (called once) and the label reads "已更新到 v9.9.9，重启 DSH 后生效". The exposed `acceptsProtocol` accepts `dsh-app:` and `https:` and rejects `dsh-resource:` — 10/10.
+
+`gui-update-protocol-check.mjs` loads a real `dsh-app://app/` page in an Electron harness whose protocol handler forwards to a Host running this plugin, then fetches `/github-md/update/check` from the page: the request is forwarded and returns the JSON payload, which is what the client calls on Desktop now that the protocol gate allows it.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

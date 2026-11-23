@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.15'
+      const BUILD_STAMP = '1.3.16'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -4532,9 +4532,15 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
     }
   }
 
-  window.__ghMdUpdate = { check: checkForUpdate, dismiss: removePill }
+  /** 哪些页面协议可以跑更新检查：浏览器 http(s)，以及桌面端的自定义协议 dsh-app:。 */
+  const UPDATE_PROTOCOLS = /^(?:https?|dsh-app):$/u
+  window.__ghMdUpdate = {
+    check: checkForUpdate,
+    dismiss: removePill,
+    acceptsProtocol: (protocol) => UPDATE_PROTOCOLS.test(String(protocol)),
+  }
 
-  if (typeof document !== 'undefined' && /^https?:$/u.test(window.location.protocol)) {
+  if (typeof document !== 'undefined' && UPDATE_PROTOCOLS.test(String(window.location.protocol))) {
     const start = () => {
       window.setTimeout(() => { void checkForUpdate() }, 1500)
       // 长时间挂着的窗口也会看到新版本（Host 侧缓存 10 分钟，这里 4 小时查一次）。

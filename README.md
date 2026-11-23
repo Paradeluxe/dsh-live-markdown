@@ -824,3 +824,15 @@ MIT — see [LICENSE](LICENSE).
 另外本轮对**当前版本稿件**（93KB、150 行超长段落）做了实测：三张插图仍正常渲染（316×500，无占位）、块间距 24px、无横向溢出；逐字符输入延迟平均 **15ms**（最差 18ms），方向键移动平均 ~16ms——长行 + 大文档没有拖慢编辑。
 
 新增 `gui-missing-image-check.mjs`（4 项）。
+
+## 1.3.16（v1.3.16）：桌面端终于会检查更新了
+
+**为什么看不到「更新」按钮**：DSH 插件列表里那个原生「更新」按钮，只在插件从 **npm registry** 或 **git 提交** 安装时才出现——它需要一个可比较的安装源（`updateAvailable()` 要求 `installTarget`）。我们的插件是本地 link 安装（`@local/dsh-github-md@link:E:\hermes_playground\dsh-plugins\dsh-github-md`），DSH 没有来源可比，所以不显示按钮，这是结构决定的。
+
+**我们自己的更新提示（1.2.0 起就有）**：Host 的 `/github-md/update/check` 拉 GitHub Releases，客户端在**左下角**弹「有新版本 vX」小条，按钮是 更新 / 说明 / ×；git 安装点「更新」会执行 `git pull --ff-only` 并提示重启。
+
+**但这个提示在桌面端从来没跑过**：客户端里有一句 `if (/^https?:$/.test(window.location.protocol))` 才启动检查，而桌面端页面是 `dsh-app://app/` —— 直接被挡掉。这一版把 `dsh-app:` 也算进来（`dsh-resource:` 等仍然排除），并暴露 `window.__ghMdUpdate.acceptsProtocol()` 便于测试。
+
+验证：新测试 `gui-update-pill-check.mjs`（10 项）用桩住 `fetch` 的方式模拟「GitHub 有 9.9.9」，断言小条出现、三个按钮齐全、点「更新」会调 `/github-md/update/apply` 并显示「已更新到 v9.9.9，重启 DSH 后生效」；另加 `gui-update-protocol-check.mjs`（4 项）在**真实的 `dsh-app://` 页面**里请求更新接口，确认桌面协议会把 `/github-md/update/check` 转发到 Host。
+
+说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。

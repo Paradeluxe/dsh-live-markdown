@@ -2851,3 +2851,23 @@ note.title = filePath
 - 没有任何 `gh-md-lp-image-missing` 占位。
 
 **测试**：`gui-responsive-check.mjs` 对每个宽度断言 7 项（共 28 项）。
+
+---
+
+## 171. v1.3.16：桌面端更新检查的协议门
+
+**DSH 原生「更新」按钮的条件**（`dsh-client-ui-plugin-manager/PluginManagerPage.tsx` 的 `updateAvailable()`）：
+
+```ts
+const target = pkg.installTarget
+if (!pkg.installed || !pkg.removable || pkg.availability === "installation" || target === undefined) return false
+return pkg.version !== target.version || ((target.spec.startsWith("link:") || pkg.source?.startsWith("link:")) && pkg.source !== target.spec)
+```
+
+只有 **registry**（`listVersions` 读 npm）或 **git spec（钉住完整 commit）**安装的 bundle 才有 `installTarget`；我们的 profile 依赖是 `@local/dsh-github-md@link:E:\...`，没有安装目标 → 按钮不出现。这是 DSH 的结构，不是我们的 bug。
+
+**我们的更新提示**：`client.js` 的 `checkForUpdate()` 请求 Host 的 `/github-md/update/check`（Host 用 GitHub Releases API 取 latest，和本地 `package.json` 版本比较），有更新就渲染 `#gh-md-update-pill`：`更新`（git 安装走 `/github-md/update/apply` → `git pull --ff-only`）/`说明`（打开发布页）/`×`（把版本记进 localStorage 不再提示）。
+
+**Bug**：启动检查的条件写成 `if (/^https?:$/.test(window.location.protocol))`，桌面端页面协议是 `dsh-app:`，检查从不启动。改为 `UPDATE_PROTOCOLS = /^(?:https?|dsh-app):$/`，并把判断暴露成 `window.__ghMdUpdate.acceptsProtocol` 便于回归测试。
+
+**link 安���的固有限制**：安装目录就是开发仓库，`package.json` 版本永远等于刚发布的那版，所以「有更新」在开发机上几乎不会出现；换 npm/git 安装源才有 DSH 原生按钮。

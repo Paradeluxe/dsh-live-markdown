@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.16
+
+- The update notice never ran in the Desktop app: it was gated on `window.location.protocol` being http/https, while the Desktop page is `dsh-app:`. The check now also accepts `dsh-app:` (other custom schemes stay excluded) and exposes `window.__ghMdUpdate.acceptsProtocol` for tests.
+- Why other plugins show a native "更新" button and this one does not: DSH offers it only for bundles installed from an npm registry or a Git commit (it needs an install target to compare); this bundle is installed from a local link.
+- New gui-update-pill-check.mjs (10 assertions, stubbed release) and gui-update-protocol-check.mjs (4 assertions, real dsh-app page forwarding /github-md/update/check to the Host).
+
 ## 1.3.15
 
 - A failed image now names the file instead of the alt text ("图片无法加载：fig1_merged_grid_xlast.png") and puts the absolute path in the element title, so a wrong/renamed path is identifiable without DevTools.
