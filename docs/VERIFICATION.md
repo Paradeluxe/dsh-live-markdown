@@ -529,7 +529,7 @@ Re-ran the whole-document pass after the manuscript was regenerated: three figur
 
 ## Responsive width sweep
 
-Same 93 KB manuscript at viewport 960/1100/1280/1500 (content column 388/377/518/610px): horizontal overflow 0 at every width, figures 365/354/486/574px (always <= column and <= natural width), h1 stays 25.888px, paragraph line-height stays 24px, no missing-image placeholder. GUI RESPONSIVE 28/28.
+Probe document `_gui_resp.md` (heading + long paragraph + 120x80 image) opened once at 1280 and then resized to 960/1100/1280/1500 (content column 453/377/518/518px): horizontal overflow 0 at every width, the small image stays exactly 120px (never upscaled, never wider than the column), h1 stays 25.888px, paragraph line-height stays 24px, no placeholder. GUI RESPONSIVE 29/29.
 
 ## Update notice on the desktop protocol (1.3.16)
 
