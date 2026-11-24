@@ -48,20 +48,37 @@ HTML（42KB）里没有批注正文，批注实际走的是 `Embed Source` / `Ob
 
 ```powershell
 cd E:\hermes_playground\dsh-word-comments
-node scripts/comments-test.mjs                 # 27/27
-node scripts/comments-export-test.mjs          # 26/26
-node scripts/comments-model-test.mjs           # 32/32
-node scripts/comments-store-test.mjs           # 13/13
-node scripts/comments-import-test.mjs          # 10/10
-node scripts/comments-export-sidecar-test.mjs  # 8/8
-node scripts/comments-point-anchor-test.mjs    # 9/9  （需要 Word）
-node scripts/comments-clipboard-test.mjs       # 13/13
-node scripts/comments-permissions-test.mjs     # 7/7
-node scripts/comments-perf-test.mjs            # 5/5
-node scripts/comments-reattach-test.mjs        # 9/9
-node scripts/comments-jspace-roundtrip.mjs     # 6/6  （需要 Word）
-node scripts/comments-word-check.mjs           # 6/6  （需要 Word）
-node scripts/comments-model-word-check.mjs     # 5/5  （需要 Word）
+node scripts/comments-test.mjs                 # 27/27  读取
+node scripts/comments-export-test.mjs          # 26/26  写回
+node scripts/comments-model-test.mjs           # 32/32  侧车模型
+node scripts/comments-store-test.mjs           # 13/13  侧车读写/合并
+node scripts/comments-import-test.mjs          # 10/10  导入
+node scripts/comments-export-sidecar-test.mjs  # 8/8    导出
+node scripts/comments-point-anchor-test.mjs    # 9/9    光标处批注（Word）
+node scripts/comments-clipboard-test.mjs       # 13/13  复制粘贴
+node scripts/comments-permissions-test.mjs     # 7/7    权限
+node scripts/comments-perf-test.mjs            # 5/5    性能
+node scripts/comments-reattach-test.mjs        # 9/9    丢失锚点恢复
+node scripts/comments-unread-test.mjs          # 14/14  新批注
+node scripts/comments-mentions-test.mjs        # 10/10  @提及
+node scripts/comments-plain-mapping-test.mjs   # 10/10  去标记映射
+node scripts/comments-jspace-roundtrip.mjs     # 6/6    真实稿件往返（Word）
+node scripts/comments-crossrange-test.mjs      # 6/6    跨段落（Word）
+node scripts/comments-table-range-test.mjs     # 5/5    表格单元格（Word）
+node scripts/comments-word-check.mjs           # 6/6    写回后 Word 读回
+node scripts/comments-model-word-check.mjs     # 5/5    模型 → docx → Word
+```
+
+**合计：19 个单元套件 / 221 项断言。**
+
+应用内（应用内套件在 `.dsh-scratch/` 下，共 18 个、159 项断言：主流程 21、面板 12、导入 11、导出 7、细节 8、
+快捷键 10、展开 7、引文 6、只读 6、复制 8、权限 8、准实时 7、打印 8、丢失恢复 9、多人合并 7、总开关 10、
+新批注 9、@提及 5）。启动测试 profile 后跑：
+
+```powershell
+cd E:\hermes_playground\.dsh-scratch
+powershell -NoProfile -ExecutionPolicy Bypass -File start-verify-host.ps1   # 写 dsh-verify-url.txt
+powershell -NoProfile -ExecutionPolicy Bypass -File run-gui-final.ps1       # 跑全部 18 个
 ```
 
 应用内套件在 `.dsh-scratch/` 下（`gui-comments-*.mjs`），需要一个指向本仓库的测试 profile：
