@@ -7,7 +7,7 @@
 | # | Word 行为 | 状态 | 实现位置 | 验证（套件 / 断言） |
 | --- | --- | --- | --- | --- |
 | 1 | 新建批注：选中文字右键/`Ctrl+Alt+M`；未选中时锚在插入点 | ✅ | `src/comments/ui.js`（`createFromSelection`、keymap）、`model.createComment` | `gui-comments-keys-check` 10/10（含光标处批注） |
-| 2 | 批注范围随编辑移动；原文删光后还能找回 | ✅ | `model.anchorAt/resolveStore/reattachComment` | `comments-model-test` 32/32、`comments-reattach-test` 9/9、`gui-comments-lost-check` 9/9（真实鼠标） |
+| 2 | 批注范围随编辑移动；可跨段落/表格单元格；删光后还能找回 | ✅ | `model.anchorAt/resolveStore/reattachComment` | `comments-model-test` 32/32、`comments-reattach-test` 9/9、`gui-comments-lost-check` 9/9、`comments-crossrange-test` 6/6、`comments-table-range-test` 5/5 |
 | 3 | 悬停高亮 ↔ 卡片双向联动 | ✅ | `ui.setHovered/previewCard` | `gui-comments-check` 21/21 |
 | 4 | 卡片在页边、按锚点对齐、多条堆叠 | ✅ | `ui.layout()`（13px 叠放、展开全部时纵向排布） | `gui-comments-details-check` 8/8、`gui-comments-allopen-check` 7/7 |
 | 5 | 卡片内容：头像、作者、时间、被批注原文、正文 | ✅ | `ui.cardHtml`（首字母头像 + 引文块） | `gui-comments-check` 21/21、`gui-comments-keys-check` 10/10 |

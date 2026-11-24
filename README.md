@@ -837,6 +837,19 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.33：跨段落与表格里的批注，Word 也认
+
+Word 的批注不只能在单行里：可以跨多个段落，也可以落在表格单元格里。这两件事之前**没有专门验证过**，
+这一版补上，并且都拿去让真实 Word 读回：
+
+| 场景 | 做法 | Word 读回 |
+| --- | --- | --- |
+| 跨段落 | 批注范围从一段中间跨到下一段中间（含换行） | 1 条批注，Scope 83 字符、**2 个段落**、含段落分隔 |
+| 表格单元格 | 批注落在表格某个单元格的文字上 | 1 条批注，Scope 正好是单元格文字，`InTable = true`、`Cells = 1` |
+
+**验收**：`comments-crossrange-test.mjs` **6/6**、`comments-table-range-test.mjs` **5/5**——两个都导出真实 docx、
+再用 Word COM 读回 Scope 的段落数 / 是否在表格内。
+
 ## 1.3.32：@我 —— 提及标记、筛选与提醒
 
 Word 的 @提及只把名字写成文本、由服务端发通知。我们没有服务端，于是把它做成**本地可见的三件事**：
@@ -1000,6 +1013,8 @@ Word 里别人新写的批注会以「新批注」样式出现，读完就恢复
 | `comments-reattach-test.mjs` | 丢失锚点的重新挂载 | 9/9 |
 | `comments-unread-test.mjs` | 新批注（readers）判定 | 14/14 |
 | `comments-mentions-test.mjs` | @提及匹配 | 10/10 |
+| `comments-crossrange-test.mjs` | 跨段落批注（Word 读回） | 6/6 |
+| `comments-table-range-test.mjs` | 表格单元格批注（Word 读回） | 5/5 |
 | `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
 | `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
 | `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
@@ -1019,7 +1034,7 @@ Word 里别人新写的批注会以「新批注」样式出现，读完就恢复
 | `gui-comments-mentions-check.mjs` | @我 标记/筛选/提醒（应用内） | 5/5 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 34 个套件、359 项断言，全绿。**
+**合计 36 个套件、370 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

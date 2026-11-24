@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.33
+
+- Two untested Word behaviours are now covered by Word itself: a comment spanning two paragraphs exports and Word reports one comment whose Scope is 83 characters across 2 paragraphs with a paragraph break inside; a comment on table-cell text exports and Word reports it with InTable = true and Cells = 1, Scope exactly the quoted cell text.
+- No code change was needed — anchor ranges are plain text offsets and the exporter splits runs across paragraphs and tables — but the claim is now measured rather than assumed.
+- Verification: comments-crossrange-test.mjs 6/6 and comments-table-range-test.mjs 5/5 (both use Word COM). README acceptance table is 36 suites / 370 assertions, re-summed by script.
+
 ## 1.3.32
 
 - @mentions became actionable without a notification server: mentionsAuthor(thread, name) matches a full name, the first token, case-insensitively, and CJK names, over the root body and its replies; the panel list tags such rows with "@我", a new "提及我" filter keeps only those threads, and when polling brings in a comment that mentions me the toast reads "有人在批注里 @ 了你（某某）" instead of the generic new-comment message.
