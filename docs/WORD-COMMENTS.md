@@ -210,9 +210,9 @@ name=word-check-xxxx.docx compatMode=15 count=3
 
 也就是说：**我们现在能写出 Word 认得、带线程和已解决状态的批注**，不只是"格式差不多的 XML"。
 
-## 3. markdown 侧的数据模型（本开发线的设计）
+## 3. markdown 侧的数据模型（已实现：`src/comments/model.js`）
 
-正文不能塞 XML 标记（会污染纯文本、破坏 Obsidian 兼容），所以批注落在**侧车文件**：
+正文一个字都不改，批注放**侧车文件**：
 
 ```
 manuscript/results_Nov18.md
@@ -222,18 +222,17 @@ manuscript/results_Nov18.comments.json
 ```json
 {
   "version": 1,
-  "documentHash": "sha256:…",
   "comments": [
     {
       "id": "c_37B0C978",
-      "paraId": "61B8BC36",
+      "paraId": null,
       "durableId": "37B0C978",
       "parentId": null,
       "resolved": false,
-      "author": { "name": "haoyunzhang", "initials": "hZ", "email": "haoyunzhang@um.edu.mo", "color": "#8b6cef" },
-      "createdAt": "2026-05-20T15:40:00Z",
-      "modifiedAt": "2026-05-20T15:40:00Z",
-      "body": "Do we have the right to make it publicly available?\n\nThere is nothing there now.",
+      "author": { "name": "Alice Chen", "initials": "AC", "email": "alice@example.edu", "color": "#8250df" },
+      "createdAt": "2026-11-24T02:00:00.000Z",
+      "modifiedAt": "2026-11-24T02:05:00.000Z",
+      "body": "这里要补引用。\n\n两句之间也算一段。",
       "anchor": {
         "start": 1234,
         "end": 1268,
@@ -246,13 +245,33 @@ manuscript/results_Nov18.comments.json
 }
 ```
 
-锚点策略（W3C Web Annotation 的组合选择器）：
+**锚点**用 W3C Web Annotation 的组合选择器：偏移是快路径，`quote` + `prefix/suffix`（各 32 字）负责在文本被编辑后重新定位。
+三种结果：`ok`（偏移仍然命中）、`moved`（在别处找到，按前后文相似度打分挑最像的）、`lost`（原文被删，
+保留 `quote` 并把 start/end 置空，**不静默丢批注**，UI 里置顶成「已丢失锚点」）。
 
-1. 快速路径：`start/end` 偏移 + `quote` 校验命中；
-2. 失效回退：在全文中找 `quote`，用 `prefix/suffix` 消歧；
-3. 仍找不到 → 标记为「空锚点/已丢失」，在侧栏置顶提示，不静默丢失。
+**线程**与 Word 一致：`resolved` 只写在线程根上，回复的 `parentId` 指向根；`setResolved(reply)` 会落到根上。
+**删除**用墓碑：`deleted: true` + `deletedAt`，根批注级联回复，多用户合并时删除能传播出去。
 
-## 4. 与 Word 互操作
+**多用户合并** `mergeStores(left, right)`：按 `id` 对齐；墓碑优先；否则取 `modifiedAt` 新的一份
+（`touch()` 保证时间戳严格递增，同一毫秒内连续修改也能分先后）；同一位置两人各加一条批注都保留（Word 也是这样）。
+
+**与 docx 互通**：`toDocxComments(store)` 把 store 转成 `docx-export.js` 的输入（数字 id 给 `w:id`，
+`durableId` 归一化成 8 位 hex 且最高位为 0），`fromDocxComments(result)` 反过来；
+`mapDocxAnchorsToMarkdown(store, docxText, markdownText)` 负责把 docx 摊平文本上的偏移落到 markdown 上
+（先按 quote 直接找，找不到再按段落近似，返回 `mapped / approx / lost` 统计）。
+
+**API 一览**：`emptyStore / parseStore / serializeStore / anchorAt / resolveAnchor / resolveStore / buildThreads /
+createComment / createReply / editComment / setResolved / deleteComment / mergeStores / toDocxComments /
+fromDocxComments / mapDocxAnchorsToMarkdown / normalizeDurableId / authorColor / initialsOf`。
+
+**验收**（两个自动脚本）：
+
+| 脚本 | 覆盖 | 结果 |
+| --- | --- | --- |
+| `scripts/comments-model-test.mjs` | JSON 往返、锚点前移/移动/丢失、线程与解决/重新打开、删除级联与墓碑、多用户合并（新增/编辑冲突/删除传播/旧版本不覆盖新版本）、docx 导入 46 条 / 23 线程、model → docx → 读回 | **32/32** |
+| `scripts/comments-model-word-check.mjs` | model → 侧车序列化 → 解析 → docx 导出 → **Word COM 读回**：3 条批注、回复挂在根上、线程已解决、两条锚点原文、两位作者 | **5/5** |
+
+## 4. 与 Word 互操作## 4. 与 Word 互操作
 
 - **导入**：解包 docx → 解析 5 个部件 → 把 `commentRangeStart/End` 映射到正文纯文本偏移 → 写 comments.json；
 - **导出**：comments.json → comments.xml / commentsExtended.xml / commentsIds.xml / commentsExtensible.xml / people.xml，
@@ -277,6 +296,8 @@ manuscript/results_Nov18.comments.json
 | `comments-test.mjs`（已实现） | 4 份真实 docx：条数 = Word COM 计数、线程/回复、done、作者、日期（本地 vs UTC）、durableId、锚点原文全部对上（27/27） |
 | `comments-export-test.mjs`（已实现） | 导出 3 条批注后读回，字段全对；重复导出幂等（26/26） |
 | `comments-word-check.mjs`（已实现） | 导出结果交给 Word COM 验收：条数/作者/锚点/线程/已解决（6/6） |
+| `comments-model-test.mjs`（已实现） | 侧车 JSON、锚点重定位、线程/解决/删除墓碑、多用户合并、docx 互通（32/32） |
+| `comments-model-word-check.mjs`（已实现） | model → 侧车 → docx → Word 读回，线程/已解决/锚点/作者全对（5/5） |
 | `word-import-real` | `JSpace_Liu_Oct09_2026.docx` 导入批注数 = COM 读到的 Count |
 | `word-export-open` | 我们导出的 docx 用 Word 打开，评论数/线程/解决状态一致 |
 
