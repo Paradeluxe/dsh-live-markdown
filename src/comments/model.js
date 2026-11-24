@@ -295,6 +295,34 @@ export function createReply(store, parentId, { author, body, text, id }) {
 }
 
 /**
+ * 把丢失锚点的批注重新挂到一段文字上（Word 的批注气泡可以拖到别处，这里用「挂到选区」代替）。
+ * @param {object} store
+ * @param {string} id
+ * @param {string} text 当前正文
+ * @param {number} from
+ * @param {number} to
+ * @returns {object|null}
+ */
+export function reattachComment(store, id, text, from, to) {
+  const comment = store.comments.find((item) => item.id === id)
+  if (comment === undefined) return null
+  if (to <= from) return null
+  comment.anchor = anchorAt(text, from, to)
+  comment.anchorStatus = 'mapped'
+  touch(comment)
+  // 回复跟根批注共用同一段原文（Word 里回复本来就挂在同一个 Scope 上）
+  if (comment.parentId === null || comment.parentId === undefined) {
+    for (const reply of store.comments) {
+      if (reply.parentId !== comment.id || reply.deleted === true) continue
+      reply.anchor = anchorAt(text, from, to)
+      reply.anchorStatus = 'mapped'
+      touch(reply)
+    }
+  }
+  return comment
+}
+
+/**
  * 能不能改这条批注的正文：Word 里只有作者能改自己的批注文字（别人可以回复、可以删除）。
  * @param {object} comment
  * @param {string} authorName 当前署名

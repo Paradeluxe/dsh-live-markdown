@@ -14,7 +14,7 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { CLIPBOARD_MIME, applyPastePayload, buildCopyPayload } from './clipboard.js'
-import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, mergeStores, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
+import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, mergeStores, parseStore, reattachComment, resolveStore, serializeStore, setResolved } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
 const CARD_WIDTH = 264
@@ -56,7 +56,7 @@ const CSS = `
 .gh-md-comments-chip.is-visible{display:inline-flex}
 .gh-md-comments-chip:hover{color:var(--dsw-alias-label-primary,#1f2328)}
 .gh-md-comments-chip-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-state-info-primary,#0969da);font-weight:600}
-.gh-md-comments-panel{position:absolute;pointer-events:auto;display:none;width:300px;max-height:62vh;box-sizing:border-box;border-radius:10px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 28px rgb(0 0 0 / 18%);overflow:auto;z-index:30}
+.gh-md-comments-panel{position:absolute;pointer-events:auto;display:none;z-index:60;width:300px;max-height:62vh;box-sizing:border-box;border-radius:10px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 28px rgb(0 0 0 / 18%);overflow:auto;z-index:60}
 .gh-md-comments-panel.is-open{display:flex;flex-direction:column}
 .gh-md-comments-panel-head{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--dsw-alias-bg-layer-2,#fff);border-bottom:1px solid var(--dsw-alias-border-l1,#eaeef2);z-index:1}
 .gh-md-comments-panel-title{font-weight:600;color:var(--dsw-alias-label-primary,#1f2328);font-size:12px;margin-right:auto}
@@ -196,6 +196,7 @@ export function createCommentsExtension(options = {}) {
       this.lastSavedSignature = null
       this.refreshScheduled = false
       this.syncScheduled = false
+      this.savedSelection = null
       ensureStyle()
       if (window.getComputedStyle(view.scrollDOM).position === 'static') view.scrollDOM.style.position = 'relative'
       this.layer = document.createElement('div')
@@ -574,11 +575,19 @@ export function createCommentsExtension(options = {}) {
       }
       if (this.lostCount > 0) {
         if (this.lostNotice === undefined || this.lostNotice.parentNode === null) {
-          this.lostNotice = document.createElement('div')
+          this.lostNotice = document.createElement('button')
+          this.lostNotice.type = 'button'
           this.lostNotice.className = 'gh-md-comments-lost'
+          this.lostNotice.addEventListener('click', (event) => {
+            event.preventDefault()
+            this.filter = 'lost'
+            this.panelOpen = true
+            this.renderPanel()
+            this.layout()
+          })
           this.layer.appendChild(this.lostNotice)
         }
-        this.lostNotice.textContent = this.lostCount + ' 条批注的原文已被删除（锚点丢失）'
+        this.lostNotice.textContent = this.lostCount + ' 条批注的原文已被删除（点这里重新挂载）'
       } else if (this.lostNotice !== undefined) {
         this.lostNotice.remove()
         this.lostNotice = undefined
@@ -595,6 +604,7 @@ export function createCommentsExtension(options = {}) {
 
     visibleThreads() {
       const threads = buildThreads(this.store.comments)
+      if (this.filter === 'lost') return threads.filter((thread) => thread.anchor.start === null || thread.anchor.start === undefined)
       if (this.filter === 'mine') return threads.filter((thread) => thread.author.name === context.author.name)
       if (this.filter === 'open') return threads.filter((thread) => thread.resolved !== true)
       if (this.filter === 'resolved') return threads.filter((thread) => thread.resolved === true)
@@ -608,8 +618,8 @@ export function createCommentsExtension(options = {}) {
       }
       this.panel.classList.add('is-open')
       const threads = this.visibleThreads()
-      const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '') + '</span></span></button>').join('')
-      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="print" title="打印批注清单">打印</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
+      const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + (thread.anchor.start === null || thread.anchor.start === undefined ? '锚点丢失 · 选中文字后点这里重新挂载' : escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '')) + '</span></span></button>').join('')
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="print" title="打印批注清单">打印</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-lost" aria-pressed="' + (this.filter === 'lost' ? 'true' : 'false') + '">丢失</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
       this.panel.querySelector('[data-act="expand"]').addEventListener('click', (event) => { event.preventDefault(); this.setAllOpen(this.allOpen !== true); this.renderPanel(); this.layout() })
       this.panel.querySelector('[data-act="print"]').addEventListener('click', (event) => { event.preventDefault(); this.printList() })
       this.panel.querySelector('[data-act="copy"]').addEventListener('click', (event) => { event.preventDefault(); void this.copyList() })
@@ -619,13 +629,17 @@ export function createCommentsExtension(options = {}) {
       this.panel.querySelector('[data-act="filter-all"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('all') })
       this.panel.querySelector('[data-act="filter-open"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('open') })
       this.panel.querySelector('[data-act="filter-mine"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('mine') })
+      this.panel.querySelector('[data-act="filter-lost"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('lost') })
       this.panel.querySelector('[data-act="filter-resolved"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('resolved') })
       this.panel.querySelector('[data-act="import"]').addEventListener('click', (event) => { event.preventDefault(); void this.importFromDocx() })
       this.panel.querySelector('[data-act="export"]').addEventListener('click', (event) => { event.preventDefault(); void this.exportToDocx() })
       for (const item of Array.from(this.panel.querySelectorAll('.gh-md-comments-item[data-comment-id]'))) {
         item.addEventListener('click', (event) => {
           event.preventDefault()
-          this.jumpTo(item.getAttribute('data-comment-id'))
+          const id = item.getAttribute('data-comment-id')
+          const thread = buildThreads(this.store.comments).find((entry) => entry.id === id)
+          if (thread !== undefined && (thread.anchor.start === null || thread.anchor.start === undefined)) this.reattachToSelection(id)
+          else this.jumpTo(id)
         })
       }
       const authorInput = this.panel.querySelector('.gh-md-comments-author input')
@@ -739,6 +753,25 @@ export function createCommentsExtension(options = {}) {
       const index = threads.findIndex((thread) => thread.id === this.openId)
       const nextIndex = index < 0 ? (direction > 0 ? 0 : threads.length - 1) : (index + direction + threads.length) % threads.length
       this.jumpTo(threads[nextIndex].id)
+    }
+
+    /** 把丢失锚点的批注挂到当前选区（Word 里批注气泡可以拖到别处，这里是等价操作）。 */
+    reattachToSelection(commentId) {
+      const range = this.view.state.selection.main
+      const selection = range.empty === false ? { from: range.from, to: range.to } : this.savedSelection
+      if (selection === null || selection === undefined || selection.to <= selection.from) {
+        this.showToast('先在正文里选中一段文字，再点这条批注')
+        return false
+      }
+      const updated = reattachComment(this.store, commentId, this.view.state.doc.toString(), selection.from, selection.to)
+      if (updated === null) {
+        this.showToast('重新挂载失败')
+        return false
+      }
+      this.refresh()
+      void this.save()
+      this.showToast('已挂到选中的文字上')
+      return true
     }
 
     jumpTo(commentId, flash = false) {
@@ -901,6 +934,7 @@ export function createCommentsExtension(options = {}) {
     syncAddButton() {
       if (context.editable !== true) { this.addButton.classList.remove('is-visible'); return }
       const range = this.view.state.selection.main
+      if (range.empty === false) this.savedSelection = { from: range.from, to: range.to }
       if (range.empty) { this.addButton.classList.remove('is-visible'); return }
       try {
         const coords = this.view.coordsAtPos(range.to)

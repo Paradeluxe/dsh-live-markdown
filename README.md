@@ -837,6 +837,25 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.27：批注原文被删掉以后还能救回来
+
+以前删掉被批注的原文，批注会变成「锚点丢失」，只能看不能救。现在可以恢复：
+
+1. 左上角出现「N 条批注的原文已被删除（点这里重新挂载）」；
+2. 点它 → 打开面板并筛到「丢失」；
+3. 在正文里选中一段新文字 → 点那条批注 → **挂上去**：锚点、高亮、线程、回复全都跟着回来，侧车立即保存。
+
+回复会跟着根批注一起挂到同一段原文（Word 里回复本来就共享同一个 Scope）。
+
+**验收**：`comments-reattach-test.mjs` **9/9**（删掉原文后锚点丢失、批注本体保留、重新挂载设置新锚点、回复跟着走、空选区不能挂、缺失 id 返回 null）；`gui-comments-lost-check.mjs` **8/8**（提示出现 → 打开丢失列表 → 点条目挂到新选区 → 提示消失、侧车锚点变成新文字、正文重新出现高亮）。
+
+> 已知问题（记在 DESIGN §183）：文档很短时，滚动容器只有一百多像素高，面板有一部分被 `overflow:auto` 裁掉，
+> **鼠标坐标**可能落在面板外面；列表项的点击因此改用程序化 click 验证。逻辑本身（重新挂载、保存、重画）已验证通过。
+
+## 全部验收总表
+
+盖 29 个套件、310 项断言。
+
 ## 1.3.26：打印批注清单 + 性能压测
 
 **打印**：面板头部「打印」在新标签页里生成排好版的批注清单——每条一个卡片，含序号、作者、时间、状态、
@@ -891,6 +910,7 @@ MIT — see [LICENSE](LICENSE).
 | `comments-clipboard-test.mjs` | 复制粘贴带批注的 payload | 13/13 |
 | `comments-permissions-test.mjs` | 只有作者能改 | 7/7 |
 | `comments-perf-test.mjs` | 400 条批注的性能 | 5/5 |
+| `comments-reattach-test.mjs` | 丢失锚点的重新挂载 | 9/9 |
 | `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
 | `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
 | `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
@@ -904,9 +924,10 @@ MIT — see [LICENSE](LICENSE).
 | `gui-comments-permissions-check.mjs` | 应用内权限 | 8/8 |
 | `gui-comments-live-check.mjs` | 准实时同步 | 7/7 |
 | `gui-comments-print-check.mjs` | 打印批注清单 | 8/8 |
+| `gui-comments-lost-check.mjs` | 丢失锚点恢复（应用内） | 8/8 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 27 个套件、293 项断言，全绿。**
+**合计 29 个套件、310 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.27
+
+- Lost anchors are now recoverable: when the commented text is deleted, the "N 条批注的原文已被删除" notice is a button that opens the panel filtered to "丢失"; selecting new text and clicking the lost comment re-attaches it (model: reattachComment()), and its replies follow the root onto the same range. Anchors, highlights, the thread and saving all come back.
+- The sidecar keeps the comment while the anchor is null (nothing is silently dropped), which is what makes recovery possible at all.
+- Verification: comments-reattach-test.mjs 9/9 and gui-comments-lost-check.mjs 8/8.
+- Known issue recorded in DESIGN §183: on very short documents the scroller is only ~170px tall, the panel is partially clipped by its overflow, and synthetic mouse coordinates can land outside it; the GUI harness therefore clicks panel rows programmatically. The recovery logic itself is verified end to end.
+
 ## 1.3.26
 
 - "打印" in the panel header opens a printable HTML page (blob URL) listing every comment with its index, author, time, state, the quoted text, the body and its replies; each card uses page-break-inside: avoid, so Ctrl+P or "save as PDF" produces a clean review sheet. This is the equivalent of Word's "print markup".
