@@ -837,6 +837,30 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.26：打印批注清单 + 性能压测
+
+**打印**：面板头部「打印」在新标签页里生成排好版的批注清单——每条一个卡片，含序号、作者、时间、状态、
+被批注的原文、正文与回复，`page-break-inside: avoid`（一条不会被撕成两半），Ctrl+P 就能打印或存 PDF。
+这是 Word「打印标记」的等价物。
+
+**性能**：400 条批注（500 条含回复）/ 2000 行正文下的实测：
+
+| 操作 | 中位数 | 最坏 |
+| --- | --- | --- |
+| `resolveStore`（每次文档变化） | 0.05ms | 0.45ms |
+| `buildThreads`（每次重绘） | 0.09ms | 0.38ms |
+| `serializeStore`（每次保存/轮询比较） | 1.71ms | 3.35ms |
+| `parseStore` | 0.67ms | 1.24ms |
+
+侧车本身 305KB。也就是说 400 条批注时每次编辑的重算开销在**亚毫秒级**，2.5 秒轮询也不会造成负担。
+
+**验收**：`comments-perf-test.mjs` **5/5**（三个核心路径 + 体积 + 解析）；`gui-comments-print-check.mjs` **8/8**
+（点打印弹出可打印页、标题含条数、正文/原文/状态都在、无报错）。
+
+## 全部验收总表
+
+盖 27 个套件、293 项断言。
+
 ## 1.3.25：别人的批注会自己出现（准实时）
 
 打开着的文档每 2.5 秒检查一次侧车：别人保存了新批注时，**不刷新页面**就会出现在正文里，并提示
@@ -866,6 +890,7 @@ MIT — see [LICENSE](LICENSE).
 | `comments-point-anchor-test.mjs` | 光标处（0 长度）批注 + Word | 9/9 |
 | `comments-clipboard-test.mjs` | 复制粘贴带批注的 payload | 13/13 |
 | `comments-permissions-test.mjs` | 只有作者能改 | 7/7 |
+| `comments-perf-test.mjs` | 400 条批注的性能 | 5/5 |
 | `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
 | `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
 | `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
@@ -878,9 +903,10 @@ MIT — see [LICENSE](LICENSE).
 | `gui-comments-clipboard-check.mjs` | 应用内复制粘贴 | 8/8 |
 | `gui-comments-permissions-check.mjs` | 应用内权限 | 8/8 |
 | `gui-comments-live-check.mjs` | 准实时同步 | 7/7 |
+| `gui-comments-print-check.mjs` | 打印批注清单 | 8/8 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 25 个套件、280 项断言，全绿。**
+**合计 27 个套件、293 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

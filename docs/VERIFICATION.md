@@ -571,6 +571,8 @@ Four export traps were found by measurement, not documentation, and are recorded
 
 **Near-real-time sync.** `gui-comments-live-check.mjs` (7/7): with the document open and no comments, the sidecar is written directly on disk as if another machine had saved it (author "Carol Li"); within the 2.5s poll the margin dot appears without a reload, the range is highlighted, the toast reads "检测到新的批注（Carol Li）", and the card shows the remote body. Merging never writes back, so the local save remains the only writer; the limitation (last writer wins for the same range, no CRDT) is recorded in DESIGN §181.
 
+**Print list and performance.** `gui-comments-print-check.mjs` (8/8): clicking "打印" opens a popup whose title says "批注清单（1 条）" and whose HTML contains the comment body, the quoted text and the state; no page errors. `comments-perf-test.mjs` (5/5) measures the hot paths on a 2000-line document with 400 threads / 500 comments: resolveStore 0.05ms median (0.45 worst), buildThreads 0.09ms (0.38), serializeStore 1.71ms (3.35), parseStore 0.67ms (1.24), sidecar 305KB — so re-resolving anchors on every edit is cheap at this scale.
+
 **Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
 
 **Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).

@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.26
+
+- "打印" in the panel header opens a printable HTML page (blob URL) listing every comment with its index, author, time, state, the quoted text, the body and its replies; each card uses page-break-inside: avoid, so Ctrl+P or "save as PDF" produces a clean review sheet. This is the equivalent of Word's "print markup".
+- Performance measured rather than assumed: with 400 threads / 500 comments on a 2000-line document, resolveStore takes 0.05ms median, buildThreads 0.09ms, serializeStore 1.71ms and parseStore 0.67ms; the sidecar itself is 305KB.
+- Verification: comments-perf-test.mjs 5/5 and gui-comments-print-check.mjs 8/8 (popup page, title with the count, body, quote and state present, no page errors). README acceptance table now covers 27 suites / 293 assertions.
+
 ## 1.3.25
 
 - Near-real-time sync: while a document is open the client polls the sidecar every 2.5s; when another author's save bumps the mtime it merges with mergeStores(remote, local), re-renders and toasts "检测到新的批注（作者）" without a page reload. Merging never writes back (a local save is the only writer) and polling pauses while document.hidden.

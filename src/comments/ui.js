@@ -609,8 +609,9 @@ export function createCommentsExtension(options = {}) {
       this.panel.classList.add('is-open')
       const threads = this.visibleThreads()
       const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '') + '</span></span></button>').join('')
-      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="print" title="打印批注清单">打印</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
       this.panel.querySelector('[data-act="expand"]').addEventListener('click', (event) => { event.preventDefault(); this.setAllOpen(this.allOpen !== true); this.renderPanel(); this.layout() })
+      this.panel.querySelector('[data-act="print"]').addEventListener('click', (event) => { event.preventDefault(); this.printList() })
       this.panel.querySelector('[data-act="copy"]').addEventListener('click', (event) => { event.preventDefault(); void this.copyList() })
       this.panel.querySelector('[data-act="close"]').addEventListener('click', (event) => { event.preventDefault(); this.togglePanel(false) })
       this.panel.querySelector('[data-act="prev"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(-1) })
@@ -792,6 +793,42 @@ export function createCommentsExtension(options = {}) {
       const threads = buildThreads(this.store.comments)
       const rows = threads.map((thread, index) => '| ' + (index + 1) + ' | ' + cell(thread.anchor.quote).slice(0, 40) + ' | ' + cell(thread.author.name) + ' | ' + cell(thread.body).slice(0, 80) + ' | ' + (thread.resolved ? '已解决' : '未解决') + ' |')
       return ['| # | 原文 | 作者 | 批注 | 状态 |', '| --- | --- | --- | --- | --- |', ...rows].join('\n')
+    }
+
+    /** 可打印的批注清单：新标签页里是排好版的 HTML（Word 的「打印标记」等价物）。 */
+    buildPrintHtml() {
+      const threads = buildThreads(this.store.comments)
+      const rows = threads.map((thread, index) => {
+        const replies = thread.replies.map((reply) => '<div class="reply"><b>' + escapeHtml(reply.author.name) + '</b> <span class="meta">' + escapeHtml(formatTime(reply.createdAt)) + '</span><div>' + escapeHtml(reply.body) + '</div></div>').join('')
+        return '<section class="comment"><header><span class="no">#' + (index + 1) + '</span><b>' + escapeHtml(thread.author.name) + '</b><span class="meta">' + escapeHtml(formatTime(thread.createdAt)) + '</span><span class="state">' + (thread.resolved ? '已解决' : '未解决') + '</span></header>' + (String(thread.anchor.quote ?? '').trim() === '' ? '<div class="quote point">（插入点批注，没有选中文字）</div>' : '<div class="quote">' + escapeHtml(String(thread.anchor.quote).slice(0, 200)) + '</div>') + '<div class="body">' + escapeHtml(thread.body) + '</div>' + (replies === '' ? '' : '<div class="replies">' + replies + '</div>') + '</section>'
+      }).join('')
+      const title = '批注清单（' + threads.length + ' 条）'
+      return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>' + escapeHtml(title) + '</title><style>' +
+        'body{font-family:"Noto Serif SC",Georgia,serif;max-width:760px;margin:32px auto;padding:0 24px;color:#1f2328;line-height:1.6}' +
+        'h1{font-size:20px;margin:0 0 4px}p.sub{color:#8c959f;margin:0 0 24px;font-size:12px}' +
+        '.comment{border:1px solid #d0d7de;border-radius:8px;padding:12px 16px;margin:0 0 14px;page-break-inside:avoid}' +
+        'header{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}header b{font-size:13px}' +
+        '.meta{color:#8c959f;font-size:11px}.no{color:#8c959f;font-size:11px}.state{margin-left:auto;font-size:11px;color:#8c959f}' +
+        '.quote{border-left:2px solid #d0d7de;padding:2px 10px;color:#57606a;font-size:12px;margin:0 0 8px}.quote.point{font-style:italic}' +
+        '.body{font-size:13px;white-space:pre-wrap}.replies{margin-top:8px;padding-top:8px;border-top:1px dashed #d0d7de;font-size:12px}' +
+        '.reply{margin:0 0 6px}.reply .meta{font-size:10px}@media print{.comment{border-color:#ccc}}' +
+        '</style></head><body><h1>' + escapeHtml(title) + '</h1><p class="sub">由 DSH Live Markdown 导出 · ' + escapeHtml(formatTime(new Date().toISOString())) + '</p>' + (rows === '' ? '<p>没有批注。</p>' : rows) + '</body></html>'
+    }
+
+    printList() {
+      const html = this.buildPrintHtml()
+      try {
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const opened = window.open(url, '_blank')
+        if (opened === null) {
+          this.showToast('浏览器拦截了打印页')
+          return
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+      } catch {
+        this.showToast('打印页打不开')
+      }
     }
 
     async copyList() {
