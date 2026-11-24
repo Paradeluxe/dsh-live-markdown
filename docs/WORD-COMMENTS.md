@@ -132,7 +132,22 @@ Word 的 COM 对象模型（`Document.Comments`）只暴露 `Index / Author / In
 现代（compatibilityMode ≥ 15）文档才是带「答复 / 解决」的批注窗格。所以：**我们导出的 docx 必须写 `w:compat` 的
 `compatibilityMode=15`**，否则用户拿到的永远是经典形态。
 
-### 1.8 读取实现与实测校验 **[实测]**
+### 1.8 写回去时踩过的四个坑 **[实测]**
+
+导出（`src/comments/docx-export.js`）被 Word 接受之前，实测踩了四个坑，都是「结构看着对、Word 就是不认」的类型：
+
+| # | 现象 | 原因 | 正确做法 |
+| --- | --- | --- | --- |
+| 1 | Word 打开后批注条数、位置都对，但「已解决」和「回复线程」全丢 | **`paraId` / `durableId` 最高位必须为 0**（值 < `0x80000000`）。用满 32 位随机值时，约一半批注会静默丢失线程/已解决状态：同一份数据导出两次，一次 `ancestor=1`、一次 `ancestor=none`，差别只在 id 取值。Word 自己写的 id 全是 `0x0`–`0x7` 开头 | 生成 id 时只用 `Math.random() * 0x80000000` |
+| 2 | 补上第 1 条后，done/线程仍然全丢 | 批注段落缺 `w:rsidR` / `w:rsidRDefault`，Word 会重排段落 id，导致 `commentEx` 的 paraId 对不上 | 批注 `<w:p>` 带上 `w:rsidR="00000000" w:rsidRDefault="00000000"` |
+| 3 | 一条批注多段时，只有最后一段生效 | 所有段落共用一个 paraId，Word 要求**每段唯一**；`commentEx` / `commentId` 只引用**最后一段**的 id | 一段生成一个 paraId，记录最后一段给 commentEx 用 |
+| 4 | 删旧批注时正文被删掉一大段 | 用 `<w:rPr>[\s\S]*?<\/w:rPr>` 清空 run 会跨过中间正文匹配到后面的 `</w:r>` | 用「匹配到第一个 `</w:r>`」的方式判断空 run |
+
+另外一条 **Word 自身的怪癖**：范围结束在段落末尾的批注，`Comment.Scope` 的 `Start == End`（长度为 0）。
+这不是锚点丢失 —— Word 自己写的 `test_nested.docx` 里同样有 4 条这样的批注（id 133/90/111/117）读出来也是 0 长度。
+判断锚点是否丢失要看 `w:commentReference` 是否还在、以及我们自己的文本偏移解析。
+
+### 1.9 读取实现与实测校验 **[实测]**
 
 `src/comments/docx-comments.js`（零依赖，只用 `node:zlib` 解 zip）已经能读出上面全部信息，
 并用 Word 16.0 的 COM 结果做了对照（脚本：`scripts/comments-test.mjs`，Word 侧：`.dsh-scratch/word-count-comments.ps1`）：
@@ -171,6 +186,29 @@ Word 的 COM 对象模型（`Document.Comments`）只暴露 `Index / Author / In
 | 14 | 多作者 | 每个作者一个头像色；`people.xml` 存身份；同一段可挂多条批注 | 多用户、每用户颜色 |
 | 15 | 协同 | 云端共编时批注实时出现，durableId 保证不重复 | 用文件监听 + id 合并实现"准实时" |
 | 16 | 只读 | 只读文档可看批注不能改 | 权限开关 |
+
+### 1.10 导出实现与 Word 验收 **[实测]**
+
+`src/comments/docx-export.js` 能读入任意 docx（先剥掉旧批注）、按纯文本偏移插锚点、写五个部件、补 rels/Content_Types、
+把 `compatibilityMode` 提到 15，再重新打包（`src/comments/zip-write.js`，零依赖）。
+
+两个自动验收：
+
+| 脚本 | 做什么 | 结果 |
+| --- | --- | --- |
+| `scripts/comments-export-test.mjs` | 3 条批注（2 根 + 1 回复，1 条已解决）写进真实 docx，再用自己的读取器读回；再导出第二次验证幂等 | **26/26** |
+| `scripts/comments-word-check.mjs` | 同一份导出结果交给 **Word COM** 读回：条数、作者、锚点原文、`Ancestor`（回复挂在 1 号上）、`Done`（第一条已解决） | **6/6** |
+
+Word 读回的实际输出：
+
+```
+name=word-check-xxxx.docx compatMode=15 count=3
+  #1 author=Alice Chen done=False ancestor=none start=171 end=210 len=39 text=[Centre for Cognitive and Brain Sciences]
+  #2 author=Bob Wu    done=False ancestor=1    start=171 end=210 len=39 text=[Centre for Cognitive and Brain Sciences]
+  #3 author=Bob Wu    done=True  ancestor=none start=260 end=284 len=24 text=[Department of Psychology]
+```
+
+也就是说：**我们现在能写出 Word 认得、带线程和已解决状态的批注**，不只是"格式差不多的 XML"。
 
 ## 3. markdown 侧的数据模型（本开发线的设计）
 
@@ -237,6 +275,8 @@ manuscript/results_Nov18.comments.json
 | `gui-comments-reply-resolve` | 回复缩进；解决后变灰并可重新打开 |
 | `gui-comments-hover` | 正文 ↔ 卡片双向高亮 |
 | `comments-test.mjs`（已实现） | 4 份真实 docx：条数 = Word COM 计数、线程/回复、done、作者、日期（本地 vs UTC）、durableId、锚点原文全部对上（27/27） |
+| `comments-export-test.mjs`（已实现） | 导出 3 条批注后读回，字段全对；重复导出幂等（26/26） |
+| `comments-word-check.mjs`（已实现） | 导出结果交给 Word COM 验收：条数/作者/锚点/线程/已解决（6/6） |
 | `word-import-real` | `JSpace_Liu_Oct09_2026.docx` 导入批注数 = COM 读到的 Count |
 | `word-export-open` | 我们导出的 docx 用 Word 打开，评论数/线程/解决状态一致 |
 
