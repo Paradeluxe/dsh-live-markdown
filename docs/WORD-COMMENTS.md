@@ -305,6 +305,30 @@ DSH 的文档面板通常只有 500–700px 宽，Word 那种常驻页边卡片�
 新建/回复/解决都落到侧车文件、正文出现高亮、刷新后圆点仍在、悬停高亮预览卡片、移开收起、点圆点重新打开卡片。
 `gui-comments-panel-check.mjs`（12/12）覆盖面板：计数徽标、列表条数、三种筛选、上下条导航循环、署名持久化与新批注作者。
 
+### 3.6 从 Word 导入批注（已实现：`src/comments/import.js` + `POST /github-md/comments/import`）
+
+「Word ↔ markdown」的第一条通路：同名文件成对处理。
+
+```
+manuscript/results_Nov18.md        ← 正文（markdown）
+manuscript/results_Nov18.docx      ← 同名 Word 文档，批注从这里读
+manuscript/results_Nov18.comments.json  ← 侧车（导入后写入）
+```
+
+流程：读 docx（`readDocxComments`）→ 转成侧车模型（`fromDocxComments`）→ 把 docx 摊平文本上的偏移映射到 markdown
+（`mapDocxAnchorsToMarkdown`：先按 quote 精确找，找不到再按段落近似）→ 与已有侧车 `mergeStores` 合并 →
+原子写回。**幂等**：同一份 docx 导入两次不会产生重复批注（按 durableId 派生的 id 对齐）。
+
+面板底部的「从 Word 导入」按钮触发；返回统计会以 toast 显示「已从 Word 导入 N 条批注（M 条锚点丢失）」，
+找不到同名 docx 时提示「没有找到同名 .docx」。
+
+**验收**：
+
+| 脚本 | 覆盖 | 结果 |
+| --- | --- | --- |
+| `comments-import-test.mjs` | 真实 docx 46 条批注全部导入、23 条线程、映射 42 精确 / 4 空锚点、作者保留、与本地批注合并、重复导入幂等 | **10/10** |
+| `gui-comments-import-check.mjs` | 真实应用里点「从 Word 导入」：docx 的根批注 + 回复进入侧车、已解决状态与作者保留、本地批注不丢、正文出现高亮 | **11/11** |
+
 ## 4. 与 Word 互操作## 4. 与 Word 互操作
 
 - **导入**：解包 docx → 解析 5 个部件 → 把 `commentRangeStart/End` 映射到正文纯文本偏移 → 写 comments.json；
@@ -334,6 +358,8 @@ DSH 的文档面板通常只有 500–700px 宽，Word 那种常驻页边卡片�
 | `comments-model-word-check.mjs`（已实现） | model → 侧车 → docx → Word 读回，线程/已解决/锚点/作者全对（5/5） |
 | `gui-comments-check.mjs`（已实现） | 真实应用里的批注 UI：新建、回复、解决、刷新持久化、悬停预览、圆点开关（21/21） |
 | `gui-comments-panel-check.mjs`（已实现） | 批注面板：计数、三种筛选、上下条导航、署名持久化并用于新批注（12/12） |
+| `comments-import-test.mjs`（已实现） | docx → 侧车导入：46 条、线程、映射统计、与本地合并、幂等（10/10） |
+| `gui-comments-import-check.mjs`（已实现） | 应用内「从 Word 导入」按钮：批注/线程/已解决/作者/高亮全对（11/11） |
 | `word-import-real` | `JSpace_Liu_Oct09_2026.docx` 导入批注数 = COM 读到的 Count |
 | `word-export-open` | 我们导出的 docx 用 Word 打开，评论数/线程/解决状态一致 |
 

@@ -482,13 +482,14 @@ export function createCommentsExtension(options = {}) {
       this.panel.classList.add('is-open')
       const threads = this.visibleThreads()
       const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '') + '</span></span></button>').join('')
-      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><label class="gh-md-comments-author">署名<input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="你的名字"></label>'
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
       this.panel.querySelector('[data-act="close"]').addEventListener('click', (event) => { event.preventDefault(); this.togglePanel(false) })
       this.panel.querySelector('[data-act="prev"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(-1) })
       this.panel.querySelector('[data-act="next"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(1) })
       this.panel.querySelector('[data-act="filter-all"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('all') })
       this.panel.querySelector('[data-act="filter-open"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('open') })
       this.panel.querySelector('[data-act="filter-resolved"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('resolved') })
+      this.panel.querySelector('[data-act="import"]').addEventListener('click', (event) => { event.preventDefault(); void this.importFromDocx() })
       for (const item of Array.from(this.panel.querySelectorAll('.gh-md-comments-item[data-comment-id]'))) {
         item.addEventListener('click', (event) => {
           event.preventDefault()
@@ -507,6 +508,41 @@ export function createCommentsExtension(options = {}) {
           if (event.key === 'Enter') { event.preventDefault(); apply(); authorInput.blur() }
           if (event.key === 'Escape') { event.preventDefault(); authorInput.blur() }
         })
+      }
+    }
+
+    async importFromDocx() {
+      if (context.path === '' || context.sessionId === '') return
+      try {
+        const response = await fetch('/github-md/comments/import', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sessionId: context.sessionId, path: context.path }),
+        })
+        if (!response.ok) {
+          this.showToast('导入失败')
+          return
+        }
+        const payload = await response.json()
+        if (payload === null || typeof payload !== 'object' || payload.ok !== true) {
+          this.showToast('导入失败')
+          return
+        }
+        if (payload.found !== true) {
+          this.showToast('没有找到同名 .docx（例如 manuscript.md ↔ manuscript.docx）')
+          return
+        }
+        if (payload.store !== undefined) {
+          this.store = parseStore(payload.store)
+          this.lastSavedSignature = serializeStore(this.store)
+          if (typeof payload.mtimeMs === 'number') this.baseMtimeMs = payload.mtimeMs
+          this.refresh()
+        }
+        const lost = payload.mapStats === undefined ? 0 : payload.mapStats.lost
+        this.showToast('已从 Word 导入 ' + payload.imported + ' 条批注' + (lost > 0 ? '（' + lost + ' 条锚点丢失）' : ''))
+        this.renderPanel()
+      } catch {
+        this.showToast('导入失败')
       }
     }
 
