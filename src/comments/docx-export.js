@@ -178,12 +178,14 @@ export function injectAnchors(documentXml, anchors, styles = { commentReferenceS
   const markers = (offset) => {
     const list = insertions.get(offset) ?? []
     let out = ''
+    // 先 start 再 end：0 长度锚点（光标处批注）在同一偏移上两者都有，
+    // Word 自己的顺序是 commentRangeStart → commentRangeEnd → commentReference。
+    for (const item of list) {
+      if (item.kind === 'start') out += `<w:commentRangeStart w:id="${item.id}"/>`
+    }
     for (const item of list) {
       if (item.kind !== 'end') continue
       out += `<w:commentRangeEnd w:id="${item.id}"/><w:r>${referenceStyle}<w:commentReference w:id="${item.id}"/></w:r>`
-    }
-    for (const item of list) {
-      if (item.kind === 'start') out += `<w:commentRangeStart w:id="${item.id}"/>`
     }
     return out
   }

@@ -11,7 +11,7 @@
  *   GET  /github-md/comments/load?sessionId=…&path=…
  *   POST /github-md/comments/save { sessionId, path, store, baseMtimeMs }
  */
-import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
+import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { buildThreads, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
 
@@ -77,6 +77,10 @@ const CSS = `
 .gh-md-comments-toast{position:absolute;pointer-events:none;right:12px;padding:4px 10px;border-radius:6px;background:var(--dsw-alias-state-success-primary,#1a7f37);color:#fff;font-size:11px;opacity:0;transition:opacity .2s ease;z-index:32}
 .gh-md-comments-toast.is-visible{opacity:1}
 .gh-md-comment-mention{color:var(--dsw-alias-state-info-primary,#0969da);background:rgb(9 105 218 / 8%);border-radius:4px;padding:0 3px;font-weight:500}
+.gh-md-comment-point{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;font-size:10px;border-radius:50%;background:rgba(255,193,7,.35);cursor:pointer;vertical-align:-2px;margin:0 1px}
+.gh-md-comment-point:hover{background:rgba(255,193,7,.65)}
+.gh-md-comment-quote.is-point{font-style:italic}
+.gh-md-comment-quote{margin:0 0 6px;padding:2px 8px;border-left:2px solid var(--dsw-alias-border-l2,#d0d7de);color:var(--dsw-alias-label-tertiary,#8c959f);font-size:11px;line-height:1.45;max-height:48px;overflow:hidden}
 `
 
 function ensureStyle() {
@@ -105,6 +109,34 @@ function escapeHtml(value) {
 
 const setComments = StateEffect.define()
 
+/** 视图 → 插件实例：给 keymap 用（Word 的 Ctrl+Alt+M 要在编辑器里就能触发）。 */
+const pluginByView = new WeakMap()
+
+/** 0 长度锚点（光标处批注）在正文里的标记，跟 Word 的插入点批注一样可见可点。 */
+class PointWidget extends WidgetType {
+  constructor(commentId) {
+    super()
+    this.commentId = commentId
+  }
+
+  eq(other) {
+    return other.commentId === this.commentId
+  }
+
+  toDOM() {
+    const node = document.createElement('span')
+    node.className = 'gh-md-comment-point'
+    node.setAttribute('data-comment-id', this.commentId)
+    node.title = '打开这条批注'
+    node.textContent = '💬'
+    return node
+  }
+
+  ignoreEvent() {
+    return false
+  }
+}
+
 const commentsField = StateField.define({
   create: () => Decoration.none,
   update(value, transaction) {
@@ -121,7 +153,11 @@ const commentsField = StateField.define({
       if (start === null || start === undefined) continue
       const from = Math.max(0, Math.min(start, transaction.state.doc.length))
       const to = Math.max(from, Math.min(comment.anchor.end ?? from, transaction.state.doc.length))
-      if (to <= from) continue
+      if (to <= from) {
+        // 0 长度锚点：Word 在插入点放一个小标记，我们也放一枚可点的图标
+        ranges.push(Decoration.widget({ widget: new PointWidget(comment.parentId ?? comment.id), side: 1 }).range(from))
+        continue
+      }
       ranges.push(Decoration.mark({ class: 'gh-md-comment-mark', attributes: { 'data-comment-id': comment.parentId ?? comment.id } }).range(from, to))
     }
     return Decoration.set(ranges, true)
@@ -144,6 +180,7 @@ export function createCommentsExtension(options = {}) {
   class CommentsPlugin {
     constructor(view) {
       this.view = view
+      pluginByView.set(view, this)
       this.store = parseStore({ version: 1, comments: [] })
       this.baseMtimeMs = null
       this.cards = new Map()
@@ -205,7 +242,7 @@ export function createCommentsExtension(options = {}) {
         this.createFromSelection()
       })
       const markId = (event) => {
-        const element = event.target instanceof Element ? event.target.closest('.gh-md-comment-mark') : null
+        const element = event.target instanceof Element ? event.target.closest('.gh-md-comment-mark, .gh-md-comment-point') : null
         return element === null ? null : element.getAttribute('data-comment-id')
       }
       view.dom.addEventListener('mouseover', (event) => {
@@ -216,7 +253,7 @@ export function createCommentsExtension(options = {}) {
       view.dom.addEventListener('mouseout', (event) => {
         const id = markId(event)
         if (id === null) return
-        if (event.relatedTarget instanceof Element && event.relatedTarget.closest('.gh-md-comment-mark')?.getAttribute('data-comment-id') === id) return
+        if (event.relatedTarget instanceof Element && event.relatedTarget.closest('.gh-md-comment-mark, .gh-md-comment-point')?.getAttribute('data-comment-id') === id) return
         this.setHovered(null)
       })
       view.dom.addEventListener('click', (event) => {
@@ -300,7 +337,7 @@ export function createCommentsExtension(options = {}) {
 
     createFromSelection() {
       const range = this.view.state.selection.main
-      if (range.empty) return
+      // Word：没选中文字时批注锚在光标处（0 长度）。这里也允许，正文里用一枚小标记显示。
       const comment = createComment(this.store, {
         author: context.author,
         body: '',
@@ -643,8 +680,10 @@ export function createCommentsExtension(options = {}) {
     cardHtml(thread) {
       const author = thread.author
       const showName = author.initials !== author.name
+      const quote = String(thread.anchor.quote ?? '').replace(/\s+/gu, ' ').trim()
+      const quoteHtml = quote === '' ? '<div class="gh-md-comment-quote is-point">（插入点批注，没有选中文字）</div>' : '<div class="gh-md-comment-quote" title="被批注的原文">' + escapeHtml(quote.length > 120 ? quote.slice(0, 120) + '…' : quote) + '</div>'
       const replies = thread.replies.map((reply) => '<div class="gh-md-comment-reply"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(reply.author.color) + '">' + escapeHtml(reply.author.initials) + '</span><div class="gh-md-comment-reply-main"><div>' + (reply.author.initials !== reply.author.name ? '<span class="gh-md-comment-author">' + escapeHtml(reply.author.name) + '</span> ' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(reply.createdAt)) + '</span></div><div class="gh-md-comment-body">' + this.renderBody(reply.body) + '</div></div></div>').join('')
-      return '<div class="gh-md-comment-head"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(author.color) + '">' + escapeHtml(author.initials) + '</span>' + (showName ? '<span class="gh-md-comment-author">' + escapeHtml(author.name) + '</span>' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(thread.createdAt)) + '</span></div><div class="gh-md-comment-body">' + this.renderBody(thread.body) + '</div>' + (replies === '' ? '' : '<div class="gh-md-comment-replies">' + replies + '</div>') + '<div class="gh-md-comment-actions"><button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
+      return '<div class="gh-md-comment-head"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(author.color) + '">' + escapeHtml(author.initials) + '</span>' + (showName ? '<span class="gh-md-comment-author">' + escapeHtml(author.name) + '</span>' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(thread.createdAt)) + '</span></div>' + quoteHtml + '<div class="gh-md-comment-body">' + this.renderBody(thread.body) + '</div>' + (replies === '' ? '' : '<div class="gh-md-comment-replies">' + replies + '</div>') + '<div class="gh-md-comment-actions"><button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
     }
 
     /** 复制成 Markdown 表格（Word 的「打印标记」等价物）。 */
@@ -779,5 +818,19 @@ export function createCommentsExtension(options = {}) {
   }
 
   const plugin = ViewPlugin.fromClass(CommentsPlugin)
-  return [commentsField, plugin]
+  // Word 的「新建批注」默认快捷键是 Ctrl+Alt+M；选中文字后按它直接开输入框。
+  const shortcuts = keymap.of([
+    {
+      key: 'Ctrl-Alt-m',
+      preventDefault: true,
+      run: (view) => {
+        const instance = pluginByView.get(view)
+        if (instance === undefined || context.editable !== true) return false
+        // 空选区也允许：Word 在光标处建一条 0 长度批注
+        instance.createFromSelection()
+        return true
+      },
+    },
+  ])
+  return [commentsField, shortcuts, plugin]
 }

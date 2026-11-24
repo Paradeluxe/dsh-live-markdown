@@ -2958,3 +2958,22 @@ docx 生成器；用同名 docx 当模板，批注才能落在「跟论文同一
 
 **为什么提及只做显示**：Word 的提及在 `comments.xml` 里就是一段文本，通知由服务端（Exchange/OneDrive）发出；
 我们既没有服务端也无法验证提及 XML 的兼容性，所以只做 UI 层的视觉提示，并在文档里写清楚边界。
+
+---
+
+## 176. v1.3.20：快捷键、引文、光标处批注
+
+**快捷键**：Word 的「新建批注」默认是 `Ctrl+Alt+M`。CM6 里用 `keymap.of` 注册，处理器通过
+`WeakMap<EditorView, CommentsPlugin>` 找回插件实例（keymap 扩展在状态创建时就固定了，而插件实例是运行时的）。
+选中文字挂选区，没选中挂光标——两条路径都走 `createFromSelection`。
+
+**0 长度锚点**：`anchorAt(text, n, n)` 得到 `quote === ''`、前后文仍在的锚点；`resolveAnchor` 对空 quote 直接返回
+`start/end`（只要不是 null），所以编辑正文后它不会丢。正文里用 `Decoration.widget` 渲染一枚 14px 的小标记
+（`PointWidget`，`eq()` 按 id 比较避免重复建 DOM），点击走统一的 `markId()` 命中判断。
+
+**导出顺序**：0 长度锚点在同一个偏移上同时有 start 和 end。Word 自己的顺序是
+`commentRangeStart` → `commentRangeEnd` → `commentReference`；早期实现先发 end 再发 start，现在按 Word 的顺序发。
+真实 Word 打开验证：1 条批注、`Scope.Text.Length === 0`。
+
+**引文**：卡片顶部渲染 `thread.anchor.quote`（截断 120 字 + 悬浮 title），0 长度时显示提示文案——
+这是 Word 气泡顶部「被批注的原文」的等价物。

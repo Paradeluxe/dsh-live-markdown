@@ -2,6 +2,14 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.20
+
+- Ctrl+Alt+M inserts a comment, matching Word's default shortcut: on a selection it anchors to the range, on an empty selection it anchors to the caret.
+- Caret comments (zero-length anchors) are supported end to end: the sidecar stores `start === end`, the body shows a small clickable marker at that position, and the card says "（插入点批注，没有选中文字）".
+- The card now shows the commented text at the top (the equivalent of Word's balloon quote), truncated with a title on hover.
+- The exporter writes a zero-length anchor as `commentRangeStart` + `commentRangeEnd` + `commentReference` at the same offset (Word's own order); verified in real Word: 1 comment, Scope length 0.
+- Verification: comments-point-anchor-test.mjs 9/9 (model, re-anchoring after edits, exported XML shape, Word COM) and gui-comments-keys-check.mjs 10/10 (shortcut, quoted text, caret comment stored/rendered/explained, Escape).
+
 ## 1.3.19 (unreleased)
 
 - "导出到 Word" in the comment panel: writes the sidecar comments into the sibling `.docx` template and saves the result as `<doc>-comments.docx` (the original file is never overwritten).
