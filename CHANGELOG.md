@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.28
+
+- Fixed the "panel cannot be clicked in short documents" issue: every overlay node (comment cards, margin dots, the count chip, the panel, the lost-anchor notice and the toast) now lives on document.body with position: fixed and viewport coordinates from coordsAtPos(), so the scroller's overflow can no longer clip them.
+- The overlays carry explicit z-index values above the app's panes (900–930); the chip previously had none and was painted underneath the document's heading line.
+- destroy() removes the chip, panel and toast too, so remounting the editor no longer leaves stale "批注 N" chips behind.
+- Verification with real mouse input: gui-comments-lost-check.mjs now clicks the notice and the panel row with actual coordinates and asserts elementFromPoint hits the row itself — 9/9. Regressions re-run against the fixed overlay: main flow 21/21, panel 12/12, expand-all 7/7, details 8/8, shortcuts 10/10, quote jump 6/6, read-only 6/6.
+
 ## 1.3.27
 
 - Lost anchors are now recoverable: when the commented text is deleted, the "N 条批注的原文已被删除" notice is a button that opens the panel filtered to "丢失"; selecting new text and clicking the lost comment re-attaches it (model: reattachComment()), and its replies follow the root onto the same range. Anchors, highlights, the thread and saving all come back.

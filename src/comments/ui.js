@@ -22,11 +22,11 @@ const CARD_WIDTH = 264
 const CSS = `
 .gh-md-comment-mark{background:rgba(255,193,7,.18);border-bottom:1px solid rgba(255,193,7,.55);border-radius:2px;transition:background-color .12s ease}
 .gh-md-comment-mark.is-active{background:rgba(255,193,7,.45)}
-.gh-md-comments-layer{position:absolute;top:0;left:0;width:100%;height:0;pointer-events:none;z-index:24;font-family:var(--dsw-font,system-ui,sans-serif);font-size:12px;line-height:1.5}
-.gh-md-comment-dot{position:absolute;pointer-events:auto;width:11px;height:11px;border-radius:50%;border:1.5px solid #d9a10a;background:#ffd76a;box-sizing:border-box;cursor:pointer;transition:transform .12s ease,opacity .12s ease}
+.gh-md-comments-layer{position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:900;font-family:var(--dsw-font,system-ui,sans-serif);font-size:12px;line-height:1.5}
+.gh-md-comment-dot{position:fixed;pointer-events:auto;width:11px;height:11px;border-radius:50%;border:1.5px solid #d9a10a;background:#ffd76a;box-sizing:border-box;cursor:pointer;transition:transform .12s ease,opacity .12s ease}
 .gh-md-comment-dot:hover{transform:scale(1.15)}
 .gh-md-comment-dot[data-resolved="1"]{background:transparent;border-color:#b8c0c8}
-.gh-md-comment-card{position:absolute;pointer-events:auto;display:none;width:${CARD_WIDTH}px;box-sizing:border-box;padding:10px 12px 8px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l2,#d0d7de);box-shadow:0 6px 22px rgb(0 0 0 / 16%);max-height:60vh;overflow:auto}
+.gh-md-comment-card{position:fixed;pointer-events:auto;display:none;width:${CARD_WIDTH}px;box-sizing:border-box;padding:10px 12px 8px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l2,#d0d7de);box-shadow:0 6px 22px rgb(0 0 0 / 16%);max-height:60vh;overflow:auto}
 .gh-md-comment-card.is-open{display:block}
 .gh-md-comment-card[data-resolved="1"]{opacity:.78}
 .gh-md-comment-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-width:0}
@@ -48,15 +48,15 @@ const CSS = `
 .gh-md-comment-form-row{display:flex;gap:6px;justify-content:flex-end}
 .gh-md-comment-btn{appearance:none;font:inherit;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:inherit}
 .gh-md-comment-btn.is-primary{background:var(--dsw-alias-state-info-primary,#0969da);border-color:transparent;color:#fff}
-.gh-md-comments-add{position:absolute;z-index:26;pointer-events:auto;display:none;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-secondary,#57606a);font-size:11px;cursor:pointer;box-shadow:0 1px 4px rgb(0 0 0 / 12%)}
+.gh-md-comments-add{position:fixed;z-index:905;pointer-events:auto;display:none;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-secondary,#57606a);font-size:11px;cursor:pointer;box-shadow:0 1px 4px rgb(0 0 0 / 12%)}
 .gh-md-comments-add:hover{color:#fff;background:var(--dsw-alias-state-info-primary,#0969da);border-color:transparent}
 .gh-md-comments-add.is-visible{display:inline-flex}
-.gh-md-comments-lost{position:absolute;left:12px;top:8px;pointer-events:auto;max-width:420px;padding:6px 10px;border-radius:8px;border:1px solid var(--dsw-alias-state-warning-primary,#b4690e);color:var(--dsw-alias-state-warning-primary,#b4690e);background:rgb(180 105 14 / 8%);font-size:11px}
-.gh-md-comments-chip{position:absolute;pointer-events:auto;display:none;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-secondary,#57606a);font-size:12px;cursor:pointer;box-shadow:0 1px 4px rgb(0 0 0 / 8%)}
+.gh-md-comments-lost{position:fixed;z-index:925;left:12px;top:8px;pointer-events:auto;max-width:420px;padding:6px 10px;border-radius:8px;border:1px solid var(--dsw-alias-state-warning-primary,#b4690e);color:var(--dsw-alias-state-warning-primary,#b4690e);background:rgb(180 105 14 / 8%);font-size:11px}
+.gh-md-comments-chip{position:fixed;z-index:910;pointer-events:auto;display:none;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-secondary,#57606a);font-size:12px;cursor:pointer;box-shadow:0 1px 4px rgb(0 0 0 / 8%)}
 .gh-md-comments-chip.is-visible{display:inline-flex}
 .gh-md-comments-chip:hover{color:var(--dsw-alias-label-primary,#1f2328)}
 .gh-md-comments-chip-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-state-info-primary,#0969da);font-weight:600}
-.gh-md-comments-panel{position:absolute;pointer-events:auto;display:none;z-index:60;width:300px;max-height:62vh;box-sizing:border-box;border-radius:10px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 28px rgb(0 0 0 / 18%);overflow:auto;z-index:60}
+.gh-md-comments-panel{position:fixed;pointer-events:auto;display:none;z-index:60;width:300px;max-height:62vh;box-sizing:border-box;border-radius:10px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 28px rgb(0 0 0 / 18%);overflow:auto;z-index:920}
 .gh-md-comments-panel.is-open{display:flex;flex-direction:column}
 .gh-md-comments-panel-head{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--dsw-alias-bg-layer-2,#fff);border-bottom:1px solid var(--dsw-alias-border-l1,#eaeef2);z-index:1}
 .gh-md-comments-panel-title{font-weight:600;color:var(--dsw-alias-label-primary,#1f2328);font-size:12px;margin-right:auto}
@@ -75,7 +75,7 @@ const CSS = `
 .gh-md-comments-item[data-resolved="1"]{opacity:.66}
 .gh-md-comments-author{margin-top:auto;display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--dsw-alias-border-l1,#eaeef2);background:var(--dsw-alias-bg-layer-2,#fff);font-size:11px;color:var(--dsw-alias-label-tertiary,#8c959f)}
 .gh-md-comments-author input{flex:1;min-width:0;font:inherit;font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-1,#f6f8fa);color:inherit}
-.gh-md-comments-toast{position:absolute;pointer-events:none;right:12px;padding:4px 10px;border-radius:6px;background:var(--dsw-alias-state-success-primary,#1a7f37);color:#fff;font-size:11px;opacity:0;transition:opacity .2s ease;z-index:32}
+.gh-md-comments-toast{position:fixed;pointer-events:none;right:12px;padding:4px 10px;border-radius:6px;background:var(--dsw-alias-state-success-primary,#1a7f37);color:#fff;font-size:11px;opacity:0;transition:opacity .2s ease;z-index:930}
 .gh-md-comments-toast.is-visible{opacity:1}
 .gh-md-comment-mention{color:var(--dsw-alias-state-info-primary,#0969da);background:rgb(9 105 218 / 8%);border-radius:4px;padding:0 3px;font-weight:500}
 .gh-md-comment-point{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;font-size:10px;border-radius:50%;background:rgba(255,193,7,.35);cursor:pointer;vertical-align:-2px;margin:0 1px}
@@ -198,15 +198,14 @@ export function createCommentsExtension(options = {}) {
       this.syncScheduled = false
       this.savedSelection = null
       ensureStyle()
-      if (window.getComputedStyle(view.scrollDOM).position === 'static') view.scrollDOM.style.position = 'relative'
       this.layer = document.createElement('div')
       this.layer.className = 'gh-md-comments-layer'
       this.addButton = document.createElement('button')
       this.addButton.type = 'button'
       this.addButton.className = 'gh-md-comments-add'
       this.addButton.textContent = '＋ 批注'
-      view.scrollDOM.appendChild(this.layer)
-      view.scrollDOM.appendChild(this.addButton)
+      document.body.appendChild(this.layer)
+      document.body.appendChild(this.addButton)
 
       this.panelOpen = false
       this.filter = 'all'
@@ -224,9 +223,9 @@ export function createCommentsExtension(options = {}) {
       this.panel.className = 'gh-md-comments-panel'
       this.toast = document.createElement('div')
       this.toast.className = 'gh-md-comments-toast'
-      view.scrollDOM.appendChild(this.chip)
-      view.scrollDOM.appendChild(this.panel)
-      view.scrollDOM.appendChild(this.toast)
+      document.body.appendChild(this.chip)
+      document.body.appendChild(this.panel)
+      document.body.appendChild(this.toast)
 
       this.onMouseUp = () => this.syncAddButton()
       this.onScroll = () => this.layout()
@@ -939,9 +938,9 @@ export function createCommentsExtension(options = {}) {
       try {
         const coords = this.view.coordsAtPos(range.to)
         const scrollerRect = this.view.scrollDOM.getBoundingClientRect()
-        const left = coords.right - scrollerRect.left + this.view.scrollDOM.scrollLeft
-        const top = coords.bottom - scrollerRect.top + this.view.scrollDOM.scrollTop + 4
-        this.addButton.style.left = Math.max(8, Math.min(left, scrollerRect.width - 76)) + 'px'
+        const left = coords.right
+        const top = coords.bottom + 4
+        this.addButton.style.left = Math.max(8, Math.min(left, scrollerRect.right - 76)) + 'px'
         this.addButton.style.top = top + 'px'
         this.addButton.classList.add('is-visible')
       } catch {
@@ -950,20 +949,19 @@ export function createCommentsExtension(options = {}) {
     }
 
     layout() {
+      // 覆盖层是 fixed：所有坐标都用视口坐标，coordsAtPos 本身就返回视口坐标
       const scrollerRect = this.view.scrollDOM.getBoundingClientRect()
-      const scrollTop = this.view.scrollDOM.scrollTop
-      const scrollLeft = this.view.scrollDOM.scrollLeft
-      const right = scrollerRect.width + scrollLeft
+      const right = scrollerRect.right
       const entries = []
       for (const thread of buildThreads(this.store.comments)) {
         const dot = this.dots.get(thread.id)
         const card = this.cards.get(thread.id)
         if (dot === undefined || card === undefined) continue
-        let top = 24
+        let top = scrollerRect.top + 16
         try {
           const position = Math.min(thread.anchor.start ?? 0, this.view.state.doc.length)
           const coords = this.view.coordsAtPos(position)
-          top = coords.top - scrollerRect.top + scrollTop
+          top = coords.top
         } catch {}
         entries.push({ thread, dot, card, top })
       }
@@ -981,25 +979,29 @@ export function createCommentsExtension(options = {}) {
         entry.dot.style.left = Math.max(8, right - 20) + 'px'
         entry.dot.style.top = (dotTop + 1) + 'px'
         entry.card.style.left = Math.max(8, right - CARD_WIDTH - 30) + 'px'
-        if (this.allOpen !== true) entry.card.style.top = Math.max(8, entry.top - 6) + 'px'
+        if (this.allOpen !== true) entry.card.style.top = Math.max(scrollerRect.top + 8, entry.top - 6) + 'px'
       }
       if (this.allOpen === true) {
         // 全部展开时按顺序往下排，后一张至少在前一张下方 8px
-        let cursor = 8
+        let cursor = scrollerRect.top + 8
         for (const entry of entries) {
           const cardTop = Math.max(cursor, entry.top - 6)
           entry.card.style.top = cardTop + 'px'
           cursor = cardTop + entry.card.offsetHeight + 8
         }
       }
-      // 顶部工具条固定在可视区（滚动时跟着 scrollTop 走，看起来像钉住）
-      const chipTop = scrollTop + 8
+      // 顶部工具条钉在可视区
+      const chipTop = scrollerRect.top + 8
       this.chip.style.left = Math.max(8, right - 96) + 'px'
       this.chip.style.top = chipTop + 'px'
       this.panel.style.left = Math.max(8, right - 312) + 'px'
       this.panel.style.top = (chipTop + 34) + 'px'
       this.toast.style.top = (chipTop + 2) + 'px'
-      if (this.lostNotice !== undefined) this.lostNotice.style.top = (chipTop + 34) + 'px'
+      this.toast.style.right = Math.max(8, window.innerWidth - right + 12) + 'px'
+      if (this.lostNotice !== undefined) {
+        this.lostNotice.style.top = (chipTop + 34) + 'px'
+        this.lostNotice.style.left = Math.max(8, scrollerRect.left + 12) + 'px'
+      }
     }
 
     update(update) {
@@ -1017,6 +1019,9 @@ export function createCommentsExtension(options = {}) {
       window.removeEventListener('resize', this.onResize)
       document.removeEventListener('keydown', this.onEscape, true)
       if (this.pollTimer !== undefined) window.clearInterval(this.pollTimer)
+      if (this.chip !== undefined) this.chip.remove()
+      if (this.panel !== undefined) this.panel.remove()
+      if (this.toast !== undefined) this.toast.remove()
       this.layer.remove()
       this.addButton.remove()
     }

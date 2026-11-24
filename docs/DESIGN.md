@@ -3104,3 +3104,19 @@ Word 的云端共编是推送；我们没有服务端，于是用**文件事实 
 面板是它的绝对定位子元素，超出部分被 `overflow:auto` 裁掉。此时面板的 `getBoundingClientRect()` 仍然是完整矩形，
 但 `document.elementsFromPoint()` 在条目中心只会命中外层容器——鼠标点击因此落空，而程序化 `.click()` 正常。
 GUI 测试用程序化点击验证功能；真实修复需要把面板移出滚动容器（挂到文档面板的定位层），留到下一版。
+
+---
+
+## 184. v1.3.28：覆盖层为什么改成 fixed
+
+§183 记的已知问题有两个独立的成因，都在这一版解决：
+
+| 现象 | 根因 | 修法 |
+| --- | --- | --- |
+| 短文档里面板/圆点被裁 | 覆盖层是 `.cm-scroller` 的绝对定位子元素，容器只有内容那么高（短文档约 170px），`overflow:auto` 把超出部分裁掉；`getBoundingClientRect()` 仍返回完整矩形，所以测试量到的是「存在的矩形」，而 `elementFromPoint()` 命中的是外层容器 | 覆盖层挂到 `document.body`，`position: fixed`，坐标直接用 `coordsAtPos()` 的视口坐标 |
+| 徽标被正文盖住 | 徽标没有 z-index（fixed 且 auto），而应用的面板容器有更高的层叠顺序 | 给每层显式 z-index：layer 900、add 905、chip 910、panel 920、lost 925、toast 930 |
+| 出现两个「批注 N」 | 编辑器重挂载时旧节点没清（`destroy()` 只移除了 layer 与 add 按钮） | `destroy()` 同时移除 chip / panel / toast |
+
+**验证方式也改了**：`gui-comments-lost-check.mjs` 现在用**真实鼠标坐标**点击提示与列表项，并断言
+`document.elementFromPoint(列表项中心)` 命中的就是列表项本身——不是靠程序化 `.click()` 绕开几何问题。
+再叠加一轮应用内回归（主流程、面板、展开、细节、快捷键、引文、只读）确认 fixed 变更没破坏别处。
