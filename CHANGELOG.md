@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.29
+
+- Feature switch for the whole comment capability: with localStorage['github-md:comments-enabled'] = '0' the extension is not mounted at all (cm6-entry only adds it when commentsPath is non-empty), so there are no highlights, margin dots, chip, shortcut or sidecar reads; setting it back to '1' restores everything on reload.
+- docs/WORD-MATRIX.md: a single page mapping all 16 Word behaviours to their implementation file and the suite that proves it, plus the five file-format capabilities, the two partial items with their exact gaps, and the commands to run every suite.
+- README documents how this branch merges back to main: no sidecar means no UI, the feature switch, the read-only switch, additive data files only (never overwriting a docx), and that the branch is a fast-forward from main's tip.
+- Verification: gui-comments-toggle-check.mjs 10/10 (off: no highlight, no dot, no chip, sidecar untouched; on: everything returns).
+
 ## 1.3.28
 
 - Fixed the "panel cannot be clicked in short documents" issue: every overlay node (comment cards, margin dots, the count chip, the panel, the lost-anchor notice and the toast) now lives on document.body with position: fixed and viewport coordinates from coordsAtPos(), so the scroller's overflow can no longer clip them.

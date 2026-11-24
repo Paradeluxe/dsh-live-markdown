@@ -837,6 +837,25 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.29：批注总开关 + 一页对照表
+
+**总开关**：`localStorage['github-md:comments-enabled'] = '0'` 时整个批注能力**完全不挂载**——没有高亮、圆点、
+徽标、快捷键，也不会读侧车；改回 `'1'` 刷新即恢复。实现上是在 `cm6-entry.js` 里按 `commentsPath` 是否为空决定加不加扩展，
+所以关掉时连扩展代码路径都不进。
+
+**合回 `main` 的方案**（这条线目前 12 个版本 11 个提交）：
+
+| 顾虑 | 现状 / 对策 |
+| --- | --- |
+| 老用户会不会被打扰 | 没有批注时 UI 完全不出现（无侧车 = 无圆点/徽标），不影响现有阅读 |
+| 关掉整块功能 | `github-md:comments-enabled = '0'`（本文） |
+| 只看不改 | `github-md:comments-readonly = '1'`（v1.3.22） |
+| 数据文件 | 只新增 `<doc>.comments.json`；导出写 `<doc>-comments.docx`，**从不覆盖**原 docx |
+| 合并方式 | 分支从 `b60ab6c`（= `main` 的 tip）拉出，可直接 `git merge --ff-only word-comments` |
+
+**一页对照表**：新增 [`docs/WORD-MATRIX.md`](docs/WORD-MATRIX.md)——16 行 Word 行为逐条列出「状态 / 实现位置 / 验证套件」，
+外加文件格式侧 5 项和「自己怎么跑」的命令清单。
+
 ## 1.3.28：修掉「面板点不到」——覆盖层改成 fixed
 
 上一版记录过一个已知问题：文档很短时滚动容器只有一百多像素高，面板挂在 `.cm-scroller` 里会被
@@ -940,10 +959,11 @@ MIT — see [LICENSE](LICENSE).
 | `gui-comments-permissions-check.mjs` | 应用内权限 | 8/8 |
 | `gui-comments-live-check.mjs` | 准实时同步 | 7/7 |
 | `gui-comments-print-check.mjs` | 打印批注清单 | 8/8 |
-| `gui-comments-lost-check.mjs` | 丢失锚点恢复（应用内） | 8/8 |
+| `gui-comments-lost-check.mjs` | 丢失锚点恢复（应用内） | 9/9 |
+| `gui-comments-toggle-check.mjs` | 批注总开关 | 10/10 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 29 个套件、310 项断言，全绿。**
+**合计 30 个套件、321 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

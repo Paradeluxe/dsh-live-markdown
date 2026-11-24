@@ -577,6 +577,8 @@ Four export traps were found by measurement, not documentation, and are recorded
 
 **Overlay hit-testing.** After moving every overlay to document.body with position: fixed and explicit z-index values, `gui-comments-lost-check.mjs` (9/9) drives the recovery flow with real mouse coordinates and asserts that `document.elementFromPoint()` at the centre of a panel row returns that row (`gh-md-comments-item-main`); previously the same point resolved to the document wrapper, which is why the earlier round had to click programmatically. The same run also confirms the notice, the row metadata and the saved anchor. Seven other in-app suites were re-run against the new overlay: main 21/21, panel 12/12, expand-all 7/7, details 8/8, shortcuts 10/10, quote 6/6, read-only 6/6.
 
+**Feature switch.** `gui-comments-toggle-check.mjs` (10/10): with a sidecar already on disk, setting `github-md:comments-enabled = '0'` and reloading yields zero highlights, zero margin dots and no visible chip, and the sidecar file is byte-identical afterwards; turning it back to '1' restores the highlight and dot. Implementation: client passes an empty commentsPath, so cm6-entry never adds the extension.
+
 **Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
 
 **Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).

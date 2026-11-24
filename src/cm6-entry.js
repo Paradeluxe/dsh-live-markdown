@@ -4577,12 +4577,15 @@ export function createLivePreview(options) {
           composeState,
           host,
         ),
-        createCommentsExtension({
-          path: typeof options.commentsPath === 'string' ? options.commentsPath : '',
-          sessionId: typeof options.commentsSessionId === 'string' ? options.commentsSessionId : '',
-          editable: options.commentsEditable === true,
-          author: options.commentsAuthor,
-        }),
+        // 批注是可选能力：没有 path（文档不可编辑或用户关了开关）就完全不挂扩展。
+        ...(typeof options.commentsPath === 'string' && options.commentsPath !== ''
+          ? [createCommentsExtension({
+              path: options.commentsPath,
+              sessionId: typeof options.commentsSessionId === 'string' ? options.commentsSessionId : '',
+              editable: options.commentsEditable === true,
+              author: options.commentsAuthor,
+            })]
+          : []),
         EditorView.theme({ '&': { outline: 'none' } }),
         EditorView.domEventHandlers({
           compositionstart() {

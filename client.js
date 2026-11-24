@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.28'
+      const BUILD_STAMP = '1.3.29'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -2796,7 +2796,14 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             parent: host,
             doc: docTextRef.current,
             // 批注：路径给侧车（<doc>.comments.json），作者名可在设置里覆盖（localStorage）。
-            commentsPath: typeof sourcePath === 'string' ? sourcePath : '',
+            commentsPath: (() => {
+              if (typeof sourcePath !== 'string' || sourcePath === '') return ''
+              try {
+                // 总开关：github-md:comments-enabled = '0' 时完全不挂批注（合回 main / 排查问题时用）
+                if (window.localStorage.getItem('github-md:comments-enabled') === '0') return ''
+              } catch {}
+              return sourcePath
+            })(),
             commentsSessionId: sessionId,
             commentsEditable: editable !== false && (() => {
               try {
