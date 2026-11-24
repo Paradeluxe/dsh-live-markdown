@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.24
+
+- Editing your own comment: the card shows an "编辑" action only when the comment's author matches the current signature, which opens the composer prefilled with the body and saves through editComment().
+- Permission rule lives in the model: canEditComment(comment, authorName) — a deleted comment cannot be edited, an empty signature edits nothing, and replies follow the same rule as their root.
+- Switching the signature re-renders the cards (not just the panel), so the edit action appears/disappears immediately; replies stay available to everyone, matching Word.
+- Verification: comments-permissions-test.mjs 7/7 (author can, others cannot, empty signature cannot, deleted cannot, replies follow the root, independent of anchor position) and gui-comments-permissions-check.mjs 8/8 (edit visible as the author, gone as Bob Wu with reply still there, back after switching, prefilled body, saved edit).
+
 ## 1.3.23
 
 - Copying text that contains comments now also puts a `text/x-ghmd-comments+json` payload on the clipboard (text, authors, timestamps, resolved flags, reply parents, anchors relative to the copied text) next to the normal `text/plain`, so other applications still paste plain text.

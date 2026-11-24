@@ -14,7 +14,7 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { CLIPBOARD_MIME, applyPastePayload, buildCopyPayload } from './clipboard.js'
-import { buildThreads, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
+import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
 const CARD_WIDTH = 264
@@ -679,7 +679,10 @@ export function createCommentsExtension(options = {}) {
       if (trimmed === '') return
       context.author = { ...context.author, name: trimmed, initials: initialsOf(trimmed) }
       try { window.localStorage.setItem('github-md:comment-author', trimmed) } catch {}
+      // 换署名会改变「能不能编辑别人的批注」，卡片要跟着重画
+      this.render()
       this.renderPanel()
+      this.layout()
     }
 
     togglePanel(force) {
@@ -742,7 +745,8 @@ export function createCommentsExtension(options = {}) {
       const quote = String(thread.anchor.quote ?? '').replace(/\s+/gu, ' ').trim()
       const quoteHtml = quote === '' ? '<div class="gh-md-comment-quote is-point">（插入点批注，没有选中文字）</div>' : '<div class="gh-md-comment-quote" data-act="jump" title="跳到正文里的这条批注">' + escapeHtml(quote.length > 120 ? quote.slice(0, 120) + '…' : quote) + '</div>'
       const replies = thread.replies.map((reply) => '<div class="gh-md-comment-reply"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(reply.author.color) + '">' + escapeHtml(reply.author.initials) + '</span><div class="gh-md-comment-reply-main"><div>' + (reply.author.initials !== reply.author.name ? '<span class="gh-md-comment-author">' + escapeHtml(reply.author.name) + '</span> ' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(reply.createdAt)) + '</span></div><div class="gh-md-comment-body">' + this.renderBody(reply.body) + '</div></div></div>').join('')
-      const actions = context.editable !== true ? '' : '<div class="gh-md-comment-actions"><button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
+      const mine = canEditComment(thread, context.author.name)
+      const actions = context.editable !== true ? '' : '<div class="gh-md-comment-actions">' + (mine ? '<button type="button" class="gh-md-comment-action" data-act="edit">编辑</button>' : '') + '<button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
       return '<div class="gh-md-comment-head"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(author.color) + '">' + escapeHtml(author.initials) + '</span>' + (showName ? '<span class="gh-md-comment-author">' + escapeHtml(author.name) + '</span>' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(thread.createdAt)) + '</span></div>' + quoteHtml + '<div class="gh-md-comment-body">' + this.renderBody(thread.body) + '</div>' + (replies === '' ? '' : '<div class="gh-md-comment-replies">' + replies + '</div>') + actions
     }
 
@@ -792,6 +796,13 @@ export function createCommentsExtension(options = {}) {
           if (this.openId !== thread.id) this.setHovered(null)
         })
         return
+      }
+      const editButton = card.querySelector('[data-act="edit"]')
+      if (editButton !== null) {
+        editButton.addEventListener('click', (event) => {
+          event.preventDefault()
+          this.openComposer(thread.id, false)
+        })
       }
       card.querySelector('[data-act="reply"]').addEventListener('click', (event) => { event.preventDefault(); this.replyTo(thread.id) })
       card.querySelector('[data-act="resolve"]').addEventListener('click', (event) => {

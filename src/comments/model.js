@@ -294,6 +294,18 @@ export function createReply(store, parentId, { author, body, text, id }) {
   return reply
 }
 
+/**
+ * 能不能改这条批注的正文：Word 里只有作者能改自己的批注文字（别人可以回复、可以删除）。
+ * @param {object} comment
+ * @param {string} authorName 当前署名
+ * @returns {boolean}
+ */
+export function canEditComment(comment, authorName) {
+  if (comment === null || comment === undefined || comment.deleted === true) return false
+  const mine = comment.author === null || comment.author === undefined ? '' : String(comment.author.name ?? '')
+  return mine !== '' && mine === String(authorName ?? '')
+}
+
 export function editComment(store, id, body) {
   const comment = store.comments.find((item) => item.id === id)
   if (comment === undefined) return null
