@@ -553,6 +553,8 @@ Measured against real Word, not against the schema.
 
 Four export traps were found by measurement, not documentation, and are recorded in `docs/WORD-COMMENTS.md` §1.8: paraId/durableId must stay below `0x80000000`; each comment paragraph needs its own paraId with `commentEx` pointing at the last one; comment paragraphs need `w:rsidR`/`w:rsidRDefault`; `compatibilityMode` must be 15.
 
+**Real manuscript round trip.** `comments-jspace-roundtrip.mjs` (6/6) takes the actual submitted manuscript `JSpace_Liu_Oct09_2026.docx` (22 comments in 11 threads, 3 resolved), parses it, writes the comments back into a copy through the exporter, and then has **Word read both files over COM**. Word reports identical numbers for the original and the round-tripped copy: 22 comments, 6 comment paragraphs with `Done` (3 resolved threads), and 22 anchors that resolve to real text. The parsed model agrees: 11 roots, 11 replies, 3 resolved roots. This is the end-to-end proof that the writer produces what Word itself produced, on a real document rather than a fixture.
+
 **Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
 
 **Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).

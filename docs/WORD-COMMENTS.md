@@ -360,6 +360,7 @@ manuscript/results_Nov18.comments.json  ← 侧车（导入后写入）
 | `gui-comments-panel-check.mjs`（已实现） | 批注面板：计数、三种筛选、上下条导航、署名持久化并用于新批注（12/12） |
 | `comments-import-test.mjs`（已实现） | docx → 侧车导入：46 条、线程、映射统计、与本地合并、幂等（10/10） |
 | `gui-comments-import-check.mjs`（已实现） | 应用内「从 Word 导入」按钮：批注/线程/已解决/作者/高亮全对（11/11） |
+| `comments-jspace-roundtrip.mjs`（已实现） | 真实投稿稿件往返：22 条 / 11 线程 / 3 已解决，Word 对原文件与写回文件报告同样的 22 条、6 个 Done 段、22 个可解析锚点（6/6） |
 | `word-import-real` | `JSpace_Liu_Oct09_2026.docx` 导入批注数 = COM 读到的 Count |
 | `word-export-open` | 我们导出的 docx 用 Word 打开，评论数/线程/解决状态一致 |
 
