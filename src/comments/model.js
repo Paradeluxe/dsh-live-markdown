@@ -8,6 +8,8 @@
  *  - 与 docx 互通：toDocxComments / fromDocxComments，字段与 docx-export.js 对齐。
  */
 
+import { buildPlainIndex, findInPlain } from './markdown-plain.js'
+
 export const COMMENT_STORE_VERSION = 1
 export const CONTEXT_CHARS = 32
 
@@ -586,6 +588,7 @@ export function mapDocxAnchorsToMarkdown(store, docxText, markdownText) {
     return low
   }
   const stats = { mapped: 0, approx: 0, lost: 0 }
+  let plainIndex = null
   for (const comment of store.comments) {
     const quote = comment.anchor.quote
     if (quote === '') {
@@ -595,10 +598,23 @@ export function mapDocxAnchorsToMarkdown(store, docxText, markdownText) {
       continue
     }
     const direct = markdownText.indexOf(quote)
-    if (direct >= 0) {
+    // 太短的 quote 会在正文里随机命中（一个「大」字能匹配到任何地方），只有唯一命中才敢直接采信
+    const unique = direct >= 0 && markdownText.indexOf(quote, direct + 1) < 0
+    if (direct >= 0 && (quote.length >= 6 || unique)) {
       comment.anchor = anchorAt(markdownText, direct, direct + quote.length)
       comment.anchorStatus = 'mapped'
       stats.mapped += 1
+      continue
+    }
+    // 去掉 markdown 标记后再找：docx 的摊平文本本来就不含 #、**、链接语法
+    if (plainIndex === null) plainIndex = buildPlainIndex(markdownText)
+    const plainHit = findInPlain(plainIndex, quote)
+    if (plainHit !== null) {
+      comment.anchor = anchorAt(markdownText, plainHit.start, plainHit.end)
+      // 换算回来的区间如果正好等于原文，那还是精确命中（只是绕过了短 quote 的直接采信）
+      const exact = markdownText.slice(plainHit.start, plainHit.end) === quote
+      comment.anchorStatus = exact ? 'mapped' : 'approx'
+      stats[exact ? 'mapped' : 'approx'] += 1
       continue
     }
     // 近似：找到 docx 里含该 quote 的段落，再在 markdown 里找段落文本（去掉 markdown 标记后比较长度）

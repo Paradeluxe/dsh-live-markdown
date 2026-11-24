@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.34
+
+- Importing comments into real markdown got better: new src/comments/markdown-plain.js strips markdown markers while remembering each character's source offset, so a quote found in the plain text can be translated back into an exact markdown range; those matches are reported as approx, not mapped. Measured on a real docx whose text was decorated with headings, bold and list markers: 42 of 46 comments anchor, and all 42 ranges are byte-identical to their quote.
+- Short quotes are no longer trusted blindly: a quote shorter than 6 characters must be unique in the document before an exact match is accepted, because a single character otherwise matches anywhere.
+- Honest limit, documented: aligning the October docx with the November section markdown only anchors 8 of 22 comments because the two documents have diverged — that is document drift, not a bug, and the lost ones can be recovered with the re-attach flow from v1.3.27.
+- Verification: comments-plain-mapping-test.mjs 10/10. README acceptance table is 37 suites / 380 assertions.
+
 ## 1.3.33
 
 - Two untested Word behaviours are now covered by Word itself: a comment spanning two paragraphs exports and Word reports one comment whose Scope is 83 characters across 2 paragraphs with a paragraph break inside; a comment on table-cell text exports and Word reports it with InTable = true and Cells = 1, Scope exactly the quoted cell text.

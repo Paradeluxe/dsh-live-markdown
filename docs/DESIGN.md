@@ -3203,3 +3203,23 @@ Word 的提及是「文本 + 服务端通知」：评论里出现 `@某人`，Wo
 **为什么不用改代码**：`injectAnchors()` 按字符偏移遍历 `<w:t>` token，遇到段落/单元格边界本来就照常插入标记；
 Word 对「范围跨段」与「范围在单元格内」都按同一套 `commentRangeStart/End` 处理。这一步的价值是**验证**而非实现：
 以后有人问「表格里能批注吗」，答案是「能，Word 读回 `InTable = true`」，不是「应该能」。
+
+---
+
+## 190. v1.3.34：导入映射为什么需要「双坐标系」
+
+docx 摊平文本与 markdown 是两个坐标系：docx 只有文字，markdown 还带 `#`、`**`、`[]()`、表格竖线。
+只按 quote 精确匹配，等于要求两个坐标系逐字相同——正文一加粗就崩。
+
+**做法**：`buildPlainIndex(markdown)` 线性扫描，跳过标记字符，产出 `plain` 与 `map`（plain 每个字符 → markdown 下标）。
+在 plain 里用「词间 \\s+」匹配 quote，命中后 `start = map[hitStart]`、`end = map[hitEnd] + 1`，得到 markdown 的区间。
+表格竖线映射成空格，避免两列粘成一个词；围栏代码块与图片整段跳过；链接只保留文字。
+
+**状态怎么算**：plain 里命中后换算出的 markdown 区间如果**逐字等于原文**，仍记 `mapped`（只是绕过了短 quote 的直接采信）；
+只有区间里含标记（比如 `**` 落在 quote 中间）才记 `approx`。这样「文档一致 ⇒ 全精确」这个性质不会因为防护规则而丢失。
+
+**短 quote 防护**：`comment.anchor.quote.length < 6` 时必须 `indexOf` 唯一命中才直接采信。
+实测里的「大」字就是这种坑：不设阈值时它会挂到正文第一个「大」上，看起来「成功」其实完全错位。
+
+**文档漂移**：10 月 docx 对 11 月 markdown 只挂上 8/22 —— 两份内容已不同。这不是映射算法的问题，
+所以没有「提高比例」的目标；`mapped/approx/lost` 如实报告，lost 用重新挂载恢复。
