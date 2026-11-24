@@ -13,6 +13,7 @@
  */
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
+import { CLIPBOARD_MIME, applyPastePayload, buildCopyPayload } from './clipboard.js'
 import { buildThreads, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
@@ -245,6 +246,41 @@ export function createCommentsExtension(options = {}) {
         event.stopPropagation()
         this.createFromSelection()
       })
+      this.onCopy = (event) => {
+        if (context.editable !== true) return
+        const range = this.view.state.selection.main
+        if (range.empty) return
+        const payload = buildCopyPayload(this.view.state.doc.toString(), this.store.comments, range.from, range.to)
+        if (payload === null || payload.comments.length === 0) return
+        event.clipboardData.setData('text/plain', payload.text)
+        event.clipboardData.setData(CLIPBOARD_MIME, JSON.stringify(payload))
+        event.preventDefault()
+      }
+      this.onPaste = (event) => {
+        if (context.editable !== true) return
+        const raw = event.clipboardData.getData(CLIPBOARD_MIME)
+        if (raw === '') return
+        let payload = null
+        try {
+          payload = JSON.parse(raw)
+        } catch {
+          return
+        }
+        if (payload === null || typeof payload !== 'object' || Array.isArray(payload.comments) !== true) return
+        event.preventDefault()
+        const range = this.view.state.selection.main
+        const insertText = typeof payload.text === 'string' ? payload.text : ''
+        this.view.dispatch({
+          changes: { from: range.from, to: range.to, insert: insertText },
+          selection: { anchor: range.from + insertText.length },
+        })
+        applyPastePayload(this.store, payload, range.from)
+        this.refresh()
+        void this.save()
+        if (payload.comments.length > 0) this.showToast('已粘贴 ' + payload.comments.length + ' 条批注')
+      }
+      view.dom.addEventListener('copy', this.onCopy, true)
+      view.dom.addEventListener('paste', this.onPaste, true)
       const markId = (event) => {
         const element = event.target instanceof Element ? event.target.closest('.gh-md-comment-mark, .gh-md-comment-point') : null
         return element === null ? null : element.getAttribute('data-comment-id')
@@ -857,6 +893,8 @@ export function createCommentsExtension(options = {}) {
 
     destroy() {
       this.view.dom.removeEventListener('mouseup', this.onMouseUp)
+      if (this.onCopy !== undefined) this.view.dom.removeEventListener('copy', this.onCopy, true)
+      if (this.onPaste !== undefined) this.view.dom.removeEventListener('paste', this.onPaste, true)
       this.view.scrollDOM.removeEventListener('scroll', this.onScroll)
       window.removeEventListener('resize', this.onResize)
       document.removeEventListener('keydown', this.onEscape, true)

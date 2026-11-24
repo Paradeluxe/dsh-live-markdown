@@ -3009,3 +3009,27 @@ docx 生成器；用同名 docx 当模板，批注才能落在「跟论文同一
 
 为什么用 localStorage 而不是权限系统：DSH 的文档没有 ACL，Word 的只读来自文档权限；我们先提供一个本地开关，
 行为（能看不能改）与 Word 对齐，等有权限系统再替换来源，不影响上层 UI。
+
+---
+
+## 179. v1.3.23：复制粘贴带批注
+
+**payload 形状**（`text/x-ghmd-comments+json`）：
+
+```json
+{ "version": 1, "text": "<被选中的文字>",
+  "comments": [{ "id": "…", "parentId": null, "author": {…}, "body": "…",
+                 "resolved": false, "createdAt": "…", "modifiedAt": "…",
+                 "anchor": { "start": 0, "end": 5, "quote": "…" } }] }
+```
+
+- 锚点是**相对选区**的，粘贴时整体平移到插入位置；
+- 只打包与选区有交集的批注（0 长度锚点在选区内也算）；回复只要父批注在 payload 里就带上；
+- 粘贴时先建根再建回复，`idMap` 把旧 id 映射到新 id，父 id 找不到的回复直接丢弃（不产生孤儿）；
+- id 用「时间戳 + 计数器」生成，并且与目标 store 里已有 id 去重，连贴两次不会撞。
+
+**为什么不用系统剪贴板的富文本格式**：Word 把自己的批注写在 RTF / `HTML Format` 的私有结构里，解析它等于
+再实现一次 Word 的剪贴板协议；我们先用自己的 MIME 把「我们自己之间的复制」做对，再考虑与 Word 互换。
+
+**capture 阶段监听**：CM6 内部也监听 paste，普通冒泡阶段可能先被它处理掉，所以 copy/paste 都用
+`addEventListener(..., true)` 挂在 `view.dom` 上。

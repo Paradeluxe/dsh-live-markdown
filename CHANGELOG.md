@@ -2,6 +2,14 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.23
+
+- Copying text that contains comments now also puts a `text/x-ghmd-comments+json` payload on the clipboard (text, authors, timestamps, resolved flags, reply parents, anchors relative to the copied text) next to the normal `text/plain`, so other applications still paste plain text.
+- Pasting that payload inserts the text and recreates the comments at the new offsets: ids are reassigned, replies re-point at the new roots, and a toast reports how many comments came along.
+- The copy handler is registered in the capture phase so CodeMirror's own paste handling cannot swallow the payload; read-only mode is respected on both sides.
+- Boundary: only our own payload is understood. Comments copied in Word itself carry their markup in RTF/HTML clipboard formats, which is not parsed yet.
+- Verification: comments-clipboard-test.mjs 13/13 (whole and partial copies, relative anchors, empty selection, shifted paste, reply re-parenting, id reassignment, pasting twice) and gui-comments-clipboard-check.mjs 8/8 (both clipboard types after a synthetic copy, text inserted on paste, comment rebuilt at the pasted offsets 8 → 30).
+
 ## 1.3.22
 
 - The quoted text at the top of a card is now clickable: it scrolls the anchor into view and flashes the highlighted range, the same way Word takes you to the commented text.
