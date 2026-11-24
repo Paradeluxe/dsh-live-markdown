@@ -25,9 +25,11 @@
 
 ## 两个 🟡 的缺口（写清楚，不含糊）
 
-**#13 复制粘贴**：只认我们自己的 `text/x-ghmd-comments+json`。从 **Word** 复制带批注的文字贴进来还不支持——Word 把批注
-写在 RTF / `HTML Format` 的私有结构里，解析它等于再实现一遍 Word 的剪贴板协议。另外系统剪贴板里自定义 MIME 的
-真实往返取决于浏览器/OS，自动化测试用合成 `ClipboardEvent` 验证接线。
+**#13 复制粘贴**：只认我们自己的 `text/x-ghmd-comments+json`。从 **Word** 复制带批注的文字贴进来还不支持，
+而且**实测证明原因不是「RTF 里有私有结构」**：在真实 Word 里复制一段带批注的文字后，RTF（43KB）里 `\\atnid` 出现 **0 次**、
+HTML（42KB）里没有批注正文，批注实际走的是 `Embed Source` / `ObjectLink`（OLE 内嵌文档片段）。要支持它得解析那个内嵌片段，
+工作量远大于解析 RTF。另外系统剪贴板里自定义 MIME 的真实往返取决于浏览器/OS，自动化测试用合成 `ClipboardEvent` 验证接线。
+实测脚本：`.dsh-scratch/probe-word-rtf-clipboard.ps1`、`probe-word-html-clipboard.ps1`。
 
 **#15 协同**：轮询 + 按 id 合并（`mergeStores`）是「准实时」，不是推送、也不是 CRDT。两台机器同时改**同一段**时
 最后保存的一方赢（批注不丢，正文位置以保存者为准）。推送与冲突细分留待有服务端时再做。

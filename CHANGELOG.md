@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.30
+
+- Measured, instead of assumed, where Word puts comments when you copy commented text: the Rich Text Format payload is 43,322 characters with 0 occurrences of \atnid, the HTML payload is 42,029 characters with no comment body, and the clipboard format list includes Embed Source / ObjectLink. Word-to-Word comment transfer therefore travels in the native OLE embedded fragment, not in RTF or HTML.
+- This corrects the previous written rationale for the partial "paste from Word" item: the missing piece is an OLE fragment parser (our docx reader pointed at the embedded stream), not an RTF parser.
+- docs/WORD-COMMENTS.md gains §1.11 with the measurement table and the exact clipboard format list; docs/WORD-MATRIX.md row 13 now states the measured reason.
+- No behaviour change: the same partial support, now with evidence instead of a guess.
+
 ## 1.3.29
 
 - Feature switch for the whole comment capability: with localStorage['github-md:comments-enabled'] = '0' the extension is not mounted at all (cm6-entry only adds it when commentsPath is non-empty), so there are no highlights, margin dots, chip, shortcut or sidecar reads; setting it back to '1' restores everything on reload.

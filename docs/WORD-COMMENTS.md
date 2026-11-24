@@ -187,6 +187,24 @@ Word 的 COM 对象模型（`Document.Comments`）只暴露 `Index / Author / In
 | 15 | 协同 | 云端共编时批注实时出现，durableId 保证不重复 | **部分实现**：2.5s 轮询 + id 合并（准实时）；无推送、无 CRDT |
 | 16 | 只读 | 只读文档可看批注不能改 | **已实现**：`github-md:comments-readonly` 本地开关 |
 
+### 1.11 剪贴板实测：Word 把批注放在哪里 **[实测]**
+
+代码里不再猜测「Word 用 RTF 传批注」，而是复选一段带批注的文字、在真实 Word 里 `Selection.Copy()`，
+再逐个读剪贴板格式（`probe-word-rtf-clipboard.ps1` / `probe-word-html-clipboard.ps1`）：
+
+| 格式 | 大小 | 含 `\\atnid` | 含批注正文 | 结论 |
+| --- | --- | --- | --- | --- |
+| `Rich Text Format` | 43,322 字符 | **0** | **否** | 只有排版与正文 |
+| `HTML Format` | 42,029 字符 | — | **否**（出现 `annotation` 只说明有样式名） | 只有排版与正文 |
+| `Embed Source` / `ObjectLink` | — | — | 未解析（OLE 复合文档） | **Word↔Word 的批注靠它** |
+
+剪贴板格式列表（实测）：
+`Object Descriptor, Rich Text Format, HTML Format, System.String, UnicodeText, Text, EnhancedMetafile, MetaFilePict, Embed Source, Link Source, Link Source Descriptor, ObjectLink, Hyperlink`
+
+**结论**：批注在 Word 之间的复制不走 RTF/HTML，而走原生的 `Embed Source`（内嵌文档片段）。要支持「从 Word 粘贴带批注」，
+得解析这个内嵌片段——本质上是把我们的 docx 读取器对准一个 OLE 流，工作量远大于解析 RTF。这条边界因此保持
+「部分实现」，并有了可复核的实测依据，而不是一句「未支持」。
+
 ### 1.10 导出实现与 Word 验收 **[实测]**
 
 `src/comments/docx-export.js` 能读入任意 docx（先剥掉旧批注）、按纯文本偏移插锚点、写五个部件、补 rels/Content_Types、
