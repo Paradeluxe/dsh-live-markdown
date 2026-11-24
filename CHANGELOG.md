@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.17
+
+- Table affordances now share one control: the append-row and append-column targets were 64x16 and 16x64 transparent strips (radius 0 and 6px, cursors `s-resize` / `e-resize`) while the between-rows insert button was a 16x16 bordered chip. All three are now 18x18, radius 6px, 1px hairline, raised surface, `pointer` cursor, and the same 12px plus icon.
+- Hover on any of the three fills it with the accent blue and turns the glyph white; a small press state darkens it.
+- Removed the resize cursors, which read as "drag to resize" for a click-to-insert control and changed shape as the pointer crossed the table edge.
+- gui-table-add-check.mjs is now 15 assertions (identical geometry/radius/border, both cursors pointer, hover accent fill); gui-table-insert-check.mjs still 25/25.
+
 ## 1.3.16
 
 - The update notice never ran in the Desktop app: it was gated on `window.location.protocol` being http/https, while the Desktop page is `dsh-app:`. The check now also accepts `dsh-app:` (other custom schemes stay excluded) and exposes `window.__ghMdUpdate.acceptsProtocol` for tests.

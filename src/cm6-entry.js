@@ -61,9 +61,12 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar { height: 8px; }
 .gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar-thumb { background: var(--dsw-alias-border-l2, #d0d7de); border-radius: 4px; }
 .gh-md-cm6-lp .gh-md-cm6-table-scroll::-webkit-scrollbar-track { background: transparent; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); opacity: 0; pointer-events: none; transition: opacity .12s ease, color .12s ease; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) / 2); width: 64px; transform: translateX(-50%); height: 16px; top: calc(16px + var(--gh-md-table-h, 0px)); cursor: s-resize; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 50%; height: 64px; transform: translateY(-50%); width: 16px; left: min(var(--gh-md-table-w, 100%), calc(100% - 18px)); cursor: e-resize; z-index: 2; border-radius: 6px; }
+/* 追加行/列与「行间插入」共用同一枚 chip：18×18、6px 圆角、1px 细边、抬升面、pointer 光标。 */
+.gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col, .gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: flex; align-items: center; justify-content: center; box-sizing: border-box; width: 18px; height: 18px; padding: 0; border: 1px solid var(--dsw-alias-border-l2, #d0d7de); border-radius: 6px; background: var(--dsw-alias-bg-layer-2, #ffffff); box-shadow: 0 1px 2px rgb(0 0 0 / 10%); color: var(--dsw-alias-label-secondary, #57606a); cursor: pointer; user-select: none; z-index: 5; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row svg, .gh-md-cm6-lp .gh-md-cm6-table-add-col svg, .gh-md-cm6-lp .gh-md-cm6-table-insert-btn svg { display: block; width: 12px; height: 12px; pointer-events: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table-add-col { opacity: 0; pointer-events: none; transition: opacity .12s ease, background-color .12s ease, border-color .12s ease, color .12s ease; }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row { left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) / 2); top: calc(16px + var(--gh-md-table-h, 0px) + 2px); transform: translateX(-50%); }
+.gh-md-cm6-lp .gh-md-cm6-table-add-col { top: 50%; left: calc(min(var(--gh-md-table-w, 100%), 100% - 18px) + 2px); transform: translateY(-50%); }
 .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table:hover .gh-md-cm6-table-add-col,
 .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table.is-hover .gh-md-cm6-table-add-col { opacity: 1; pointer-events: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle, .gh-md-cm6-lp .gh-md-cm6-table-col-handle { position: absolute; display: flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-tertiary, #8c959f); background: transparent; border-radius: 4px; opacity: 0; pointer-events: none; cursor: pointer; z-index: 2; transition: opacity .12s ease, color .12s ease, background-color .12s ease; }
@@ -74,10 +77,8 @@ const CSS = `
 /* 插入指示显示时，底部/右侧的追加胶囊先收起来，免得和边界按钮叠在一起。 */
 .gh-md-cm6-lp .gh-md-cm6-table.is-insert-hover .gh-md-cm6-table-add-row, .gh-md-cm6-lp .gh-md-cm6-table.is-insert-hover .gh-md-cm6-table-add-col { opacity: 0 !important; pointer-events: none !important; }
 /* 行/列之间插入：悬停到行/列边界附近时出现一条指示线和一个「+」按钮 */
-.gh-md-cm6-lp .gh-md-cm6-table-insert-btn { position: absolute; display: none; align-items: center; justify-content: center; box-sizing: border-box; width: 16px; height: 16px; padding: 0; border-radius: 4px; background: var(--dsw-alias-bg-layer-2, #ffffff); border: 1px solid var(--dsw-alias-border-l2, #d0d7de); box-shadow: 0 1px 3px rgb(0 0 0 / 14%); color: var(--dsw-alias-label-secondary, #57606a); cursor: pointer; z-index: 5; user-select: none; }
-.gh-md-cm6-lp .gh-md-cm6-table-insert-btn svg { display: block; width: 10px; height: 10px; pointer-events: none; }
+.gh-md-cm6-lp .gh-md-cm6-table-insert-btn { display: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-btn.is-visible { display: flex; }
-.gh-md-cm6-lp .gh-md-cm6-table-insert-btn:hover { color: #ffffff; background: var(--dsw-alias-state-info-primary, #0969da); border-color: transparent; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-line { position: absolute; display: none; background: var(--dsw-alias-state-info-primary, #0969da); border-radius: 1px; z-index: 3; pointer-events: none; }
 .gh-md-cm6-lp .gh-md-cm6-table-insert-line.is-visible { display: block; }
 .gh-md-cm6-lp .gh-md-cm6-table .gh-md-cm6-table-cell-selected { background: rgb(9 105 218 / 10%) !important; }
@@ -88,7 +89,8 @@ const CSS = `
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle.is-dragging, .gh-md-cm6-lp .gh-md-cm6-table-col-handle.is-dragging { opacity: 1; color: var(--dsw-alias-state-info-primary, #0969da); background: rgb(9 105 218 / 12%); cursor: grabbing; }
 .gh-md-cm6-lp .gh-md-cm6-table-row-handle { cursor: grab; }
 .gh-md-cm6-lp .gh-md-cm6-table-col-handle { cursor: grab; }
-.gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover { color: var(--dsw-alias-label-secondary, #57606a); background: var(--dsw-alias-bg-layer-1, #f6f8fa); box-shadow: 0 0 0 1px var(--dsw-alias-border-l2, #d0d7de); }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row:hover, .gh-md-cm6-lp .gh-md-cm6-table-add-col:hover, .gh-md-cm6-lp .gh-md-cm6-table-insert-btn:hover { color: #ffffff; background: var(--dsw-alias-state-info-primary, #0969da); border-color: transparent; box-shadow: 0 1px 3px rgb(9 105 218 / 30%); }
+.gh-md-cm6-lp .gh-md-cm6-table-add-row:active, .gh-md-cm6-lp .gh-md-cm6-table-add-col:active, .gh-md-cm6-lp .gh-md-cm6-table-insert-btn:active { filter: brightness(.94); }
 .gh-md-cm6-lp .gh-md-cm6-table table { border-collapse: collapse; font-size: 1em; line-height: 1.3; width: auto; max-width: 100%; margin: 0; table-layout: auto; }
 .gh-md-cm6-lp .gh-md-cm6-table th, .gh-md-cm6-lp .gh-md-cm6-table td { border: 1px solid var(--gh-md-table-border, #e4e4e4); padding: 4px 8px; word-break: normal; overflow-wrap: break-word; min-width: 3em; white-space: normal !important; line-height: 1.3 !important; font-size: 16px; }
 .gh-md-cm6-lp .gh-md-cm6-table th { background: transparent; font-weight: 600; }
@@ -1050,13 +1052,13 @@ class TableWidget extends WidgetType {
     const insertButtonRow = document.createElement('div')
     insertButtonRow.className = 'gh-md-cm6-table-insert-btn is-row'
     insertButtonRow.style.display = 'none'
-    insertButtonRow.innerHTML = `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.2v7.6M1.2 5h7.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
+    insertButtonRow.innerHTML = plusIcon
     insertButtonRow.title = '在这里插入一行'
     insertButtonRow.setAttribute('role', 'button')
     const insertButtonCol = document.createElement('div')
     insertButtonCol.className = 'gh-md-cm6-table-insert-btn is-col'
     insertButtonCol.style.display = 'none'
-    insertButtonCol.innerHTML = `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.2v7.6M1.2 5h7.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
+    insertButtonCol.innerHTML = plusIcon
     insertButtonCol.title = '在这里插入一列'
     insertButtonCol.setAttribute('role', 'button')
     const insertLine = document.createElement('div')
@@ -1091,7 +1093,7 @@ class TableWidget extends WidgetType {
       const colButtonTop = Math.min(tableRect.bottom + 2, window.innerHeight - 20)
       if (kind === 'row') {
         insertButtonRow.style.left = (rowButtonLeft - wrapperRect.left) + 'px'
-        insertButtonRow.style.top = (boundary - wrapperRect.top - 8) + 'px'
+        insertButtonRow.style.top = (boundary - wrapperRect.top - 9) + 'px'
         insertButtonCol.classList.remove('is-visible')
         insertButtonCol.style.display = 'none'
         insertButtonRow.classList.add('is-visible')
@@ -1101,7 +1103,7 @@ class TableWidget extends WidgetType {
         insertLine.style.width = tableRect.width + 'px'
         insertLine.style.height = '2px'
       } else {
-        insertButtonCol.style.left = (boundary - wrapperRect.left - 8) + 'px'
+        insertButtonCol.style.left = (boundary - wrapperRect.left - 9) + 'px'
         insertButtonCol.style.top = (colButtonTop - wrapperRect.top) + 'px'
         insertButtonRow.classList.remove('is-visible')
         insertButtonRow.style.display = 'none'
@@ -1115,9 +1117,9 @@ class TableWidget extends WidgetType {
       insertLine.classList.add('is-visible')
       insertLine.style.display = 'block'
       // 只有按钮和追加胶囊真的重叠时才把胶囊收起来（否则鼠标悬停胶囊会被误判）。
-      const buttonLeft = kind === 'row' ? rowButtonLeft : boundary - 8
-      const buttonTop = kind === 'row' ? boundary - 8 : colButtonTop
-      const buttonRect = { left: buttonLeft, top: buttonTop, right: buttonLeft + 16, bottom: buttonTop + 16 }
+      const buttonLeft = kind === 'row' ? rowButtonLeft : boundary - 9
+      const buttonTop = kind === 'row' ? boundary - 9 : colButtonTop
+      const buttonRect = { left: buttonLeft, top: buttonTop, right: buttonLeft + 18, bottom: buttonTop + 18 }
       let overlapsPill = false
       for (const pill of [rowButton, colButton]) {
         const pillRect = pill.getBoundingClientRect()

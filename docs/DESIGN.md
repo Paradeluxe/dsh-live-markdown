@@ -2871,3 +2871,21 @@ return pkg.version !== target.version || ((target.spec.startsWith("link:") || pk
 **Bug**：启动检查的条件写成 `if (/^https?:$/.test(window.location.protocol))`，桌面端页面协议是 `dsh-app:`，检查从不启动。改为 `UPDATE_PROTOCOLS = /^(?:https?|dsh-app):$/`，并把判断暴露成 `window.__ghMdUpdate.acceptsProtocol` 便于回归测试。
 
 **link 安���的固有限制**：安装目录就是开发仓库，`package.json` 版本永远等于刚发布的那版，所以「有更新」在开发机上几乎不会出现；换 npm/git 安装源才有 DSH 原生按钮。
+
+---
+
+## 172. v1.3.17：表格三个「+」入口统一成一枚 chip
+
+**改前实测**（`probe-table-pills.mjs`，悬停表格后读 `getComputedStyle`）：
+
+| 元素 | 尺寸 | 圆角 | 边框 | 光标 | 悬停 |
+| --- | --- | --- | --- | --- | --- |
+| `.gh-md-cm6-table-add-row` | 64×16 | 0 | 无 | `s-resize` | 白底 + 1px 描边阴影 |
+| `.gh-md-cm6-table-add-col` | 16×64 | 6px | 无 | `e-resize` | 同上 |
+| `.gh-md-cm6-table-insert-btn` | 16×16 | 4px | 1px | `pointer` | 蓝色实心 + 白图标 |
+
+**改后**：三条规则合并成共享 chip（`add-row` / `add-col` / `insert-btn` 同一选择器组），18×18、6px 圆角、1px `--dsw-alias-border-l2` 细边、`--dsw-alias-bg-layer-2` 抬升面、`0 1px 2px rgb(0 0 0 / 10%)` 阴影、`cursor: pointer`、12px 加号（`plusIcon`，viewBox 16 / stroke 1.6）；悬停统一蓝色实心 `--dsw-alias-state-info-primary` + 白图标 + 蓝色调阴影，`:active` 用 `filter: brightness(.94)` 做按下反馈。
+
+位置不变：追加行在表格下方居中（表格底 + 2px），追加列在表格右边缘垂直居中（右 + 2px）。插入按钮几何常量 16/8 → 18/9，重叠判定同步。
+
+**为什么去掉 resize 光标**：`s-resize` / `e-resize` 表示「拖拽改变尺寸」，而这两个按钮是「点击追加」；鼠标从表格正文移到边缘按钮时形状由文本/指针跳成双箭头，是用户反馈的「光标变化怪怪的」。三枚按钮语义相同，光标就应当一致为 `pointer`。

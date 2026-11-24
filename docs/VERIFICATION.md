@@ -537,6 +537,12 @@ Probe document `_gui_resp.md` (heading + long paragraph + 120x80 image) opened o
 
 `gui-update-protocol-check.mjs` loads a real `dsh-app://app/` page in an Electron harness whose protocol handler forwards to a Host running this plugin, then fetches `/github-md/update/check` from the page: the request is forwarded and returns the JSON payload, which is what the client calls on Desktop now that the protocol gate allows it.
 
+## Table chips share one control (1.3.17)
+
+`gui-table-add-check.mjs` (15/15) measures both append chips while the table is hovered: same width, height, border radius and border width (18 / 18 / 6px / 1px), both `cursor: pointer`, and moving the pointer onto a chip keeps it visible and fills it with `rgb(9, 105, 218)` with a white glyph. `gui-table-insert-check.mjs` stays 25/25 for the between-rows/columns affordance, so the new geometry (18px chip, 9px half-width) did not shift the insert target.
+
+Probe `probe-table-pills.mjs` records the id/after computed styles for the report; `probe-table-insert.mjs` confirms the insert chip has the same 18x18 / 6px / 1px / pointer box as the append chips.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.
