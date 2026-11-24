@@ -563,6 +563,8 @@ Four export traps were found by measurement, not documentation, and are recorded
 
 **Author filter and expand-all.** `gui-comments-allopen-check.mjs` (7/7): with one comment by "我" and one by "Bob Wu", the panel's "我的" filter leaves exactly one; "展开" opens both cards, their tops come out 126px apart (162.06 / 288.06) so they do not overlap, the button label flips to "收起", and collapsing closes both.
 
+**Quote jump and read-only review.** `gui-comments-quote-check.mjs` (6/6): the quote at the top of a card is clickable, clicking it adds `.is-flash` to the anchored range and scrolls the scroller from 13 to 1172 so the anchor really moves into view. `gui-comments-readonly-check.mjs` (6/6): with the read-only flag set, a document that already has a sidecar shows one margin dot, the card renders the comment text, and neither the reply/resolve/delete buttons nor the floating "+" button exist while selecting text.
+
 **Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
 
 **Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).

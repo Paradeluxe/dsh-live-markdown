@@ -2992,3 +2992,20 @@ docx 生成器；用同名 docx 当模板，批注才能落在「跟论文同一
 
 **为什么不做「多张卡片同时悬停预览」**：预览是单卡的（悬停即开、移开即关），多卡场景交给「展开全部」这个显式开关，
 避免鼠标划过高亮时页边乱跳。
+
+---
+
+## 178. v1.3.22：引文跳转与只读审阅
+
+**引文跳转**：卡片顶部的引文加了 `data-act="jump"`，点击走 `jumpTo(id, flash=true)`：`scrollIntoView(y: 'center')`
+把锚点滚到视口中间，再给所有 `[data-comment-id]` 节点加 900ms 的 `.is-flash` 类（高亮加深 + 外发光）。
+实测 `scrollTop` 从 13 跳到 1172，说明确实滚到了文档中段的锚点，而不是只改了选中状态。
+
+**只读审阅**：`commentsEditable` 由客户端传进来（`editable !== false` 且未开启只读开关）。只读时：
+
+- `cardHtml` 里 `const actions = context.editable !== true ? '' : <按钮组>`，所以卡片只有正文与回复；
+- `bindCard` 在只读时接完 hover 就 return，不会给不存在的按钮绑事件；
+- `syncAddButton` 与 `Ctrl+Alt+M` 早已检查 `context.editable`，所以建不了新批注。
+
+为什么用 localStorage 而不是权限系统：DSH 的文档没有 ACL，Word 的只读来自文档权限；我们先提供一个本地开关，
+行为（能看不能改）与 Word 对齐，等有权限系统再替换来源，不影响上层 UI。

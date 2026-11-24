@@ -80,6 +80,10 @@ const CSS = `
 .gh-md-comment-point{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;font-size:10px;border-radius:50%;background:rgba(255,193,7,.35);cursor:pointer;vertical-align:-2px;margin:0 1px}
 .gh-md-comment-point:hover{background:rgba(255,193,7,.65)}
 .gh-md-comment-quote.is-point{font-style:italic}
+.gh-md-comment-quote[data-act="jump"]{cursor:pointer}
+.gh-md-comment-quote[data-act="jump"]:hover{color:var(--dsw-alias-label-primary,#1f2328);border-left-color:var(--dsw-alias-state-info-primary,#0969da)}
+.gh-md-comment-mark.is-flash{background:rgba(255,193,7,.75);box-shadow:0 0 0 2px rgba(255,193,7,.5)}
+.gh-md-comment-point.is-flash{background:rgba(255,193,7,.9);transform:scale(1.25)}
 .gh-md-comment-quote{margin:0 0 6px;padding:2px 8px;border-left:2px solid var(--dsw-alias-border-l2,#d0d7de);color:var(--dsw-alias-label-tertiary,#8c959f);font-size:11px;line-height:1.45;max-height:48px;overflow:hidden}
 `
 
@@ -661,7 +665,7 @@ export function createCommentsExtension(options = {}) {
       this.jumpTo(threads[nextIndex].id)
     }
 
-    jumpTo(commentId) {
+    jumpTo(commentId, flash = false) {
       const thread = buildThreads(this.store.comments).find((item) => item.id === commentId)
       if (thread === undefined) return
       // 面板在窄面板里会盖住卡片，跳转后先收起面板，让卡片完整可见
@@ -671,6 +675,12 @@ export function createCommentsExtension(options = {}) {
         const position = Math.min(Math.max(0, thread.anchor.start ?? 0), this.view.state.doc.length)
         this.view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) })
       } catch {}
+      if (flash === true) {
+        for (const mark of Array.from(this.view.dom.querySelectorAll('[data-comment-id="' + commentId + '"]'))) {
+          mark.classList.add('is-flash')
+          window.setTimeout(() => mark.classList.remove('is-flash'), 900)
+        }
+      }
       this.renderPanel()
       this.layout()
     }
@@ -694,9 +704,10 @@ export function createCommentsExtension(options = {}) {
       const author = thread.author
       const showName = author.initials !== author.name
       const quote = String(thread.anchor.quote ?? '').replace(/\s+/gu, ' ').trim()
-      const quoteHtml = quote === '' ? '<div class="gh-md-comment-quote is-point">（插入点批注，没有选中文字）</div>' : '<div class="gh-md-comment-quote" title="被批注的原文">' + escapeHtml(quote.length > 120 ? quote.slice(0, 120) + '…' : quote) + '</div>'
+      const quoteHtml = quote === '' ? '<div class="gh-md-comment-quote is-point">（插入点批注，没有选中文字）</div>' : '<div class="gh-md-comment-quote" data-act="jump" title="跳到正文里的这条批注">' + escapeHtml(quote.length > 120 ? quote.slice(0, 120) + '…' : quote) + '</div>'
       const replies = thread.replies.map((reply) => '<div class="gh-md-comment-reply"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(reply.author.color) + '">' + escapeHtml(reply.author.initials) + '</span><div class="gh-md-comment-reply-main"><div>' + (reply.author.initials !== reply.author.name ? '<span class="gh-md-comment-author">' + escapeHtml(reply.author.name) + '</span> ' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(reply.createdAt)) + '</span></div><div class="gh-md-comment-body">' + this.renderBody(reply.body) + '</div></div></div>').join('')
-      return '<div class="gh-md-comment-head"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(author.color) + '">' + escapeHtml(author.initials) + '</span>' + (showName ? '<span class="gh-md-comment-author">' + escapeHtml(author.name) + '</span>' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(thread.createdAt)) + '</span></div>' + quoteHtml + '<div class="gh-md-comment-body">' + this.renderBody(thread.body) + '</div>' + (replies === '' ? '' : '<div class="gh-md-comment-replies">' + replies + '</div>') + '<div class="gh-md-comment-actions"><button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
+      const actions = context.editable !== true ? '' : '<div class="gh-md-comment-actions"><button type="button" class="gh-md-comment-action is-primary" data-act="reply">回复</button><button type="button" class="gh-md-comment-action" data-act="resolve">' + (thread.resolved ? '重新打开' : '解决') + '</button><button type="button" class="gh-md-comment-action" data-act="delete">删除</button></div>'
+      return '<div class="gh-md-comment-head"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(author.color) + '">' + escapeHtml(author.initials) + '</span>' + (showName ? '<span class="gh-md-comment-author">' + escapeHtml(author.name) + '</span>' : '') + '<span class="gh-md-comment-time">' + escapeHtml(formatTime(thread.createdAt)) + '</span></div>' + quoteHtml + '<div class="gh-md-comment-body">' + this.renderBody(thread.body) + '</div>' + (replies === '' ? '' : '<div class="gh-md-comment-replies">' + replies + '</div>') + actions
     }
 
     /** 复制成 Markdown 表格（Word 的「打印标记」等价物）。 */
@@ -731,6 +742,21 @@ export function createCommentsExtension(options = {}) {
     }
 
     bindCard(card, thread) {
+      const quoteNode = card.querySelector('[data-act="jump"]')
+      if (quoteNode !== null) {
+        quoteNode.addEventListener('click', (event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          this.jumpTo(thread.id, true)
+        })
+      }
+      if (context.editable !== true) {
+        card.addEventListener('mouseenter', () => this.setHovered(thread.id))
+        card.addEventListener('mouseleave', () => {
+          if (this.openId !== thread.id) this.setHovered(null)
+        })
+        return
+      }
       card.querySelector('[data-act="reply"]').addEventListener('click', (event) => { event.preventDefault(); this.replyTo(thread.id) })
       card.querySelector('[data-act="resolve"]').addEventListener('click', (event) => {
         event.preventDefault()

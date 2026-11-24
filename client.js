@@ -28,7 +28,7 @@
       /** 浏览器库前缀：必须与 Host 半边 index.js 的 ASSET_PREFIX 逐字一致。 */
       const ASSET_PREFIX = '/github-md/vendor/'
       /** 客户端构建号。 */
-      const BUILD_STAMP = '1.3.21'
+      const BUILD_STAMP = '1.3.22'
 
       /** 批量问 Host 要图片 mtime（只允许工作区内路径）。 */
       async function fetchImageVersions(sessionId, paths) {
@@ -2798,7 +2798,14 @@ body[data-ds-dark-theme] .cm-s-github-md .cm-formatting{color:#6e7681}
             // 批注：路径给侧车（<doc>.comments.json），作者名可在设置里覆盖（localStorage）。
             commentsPath: typeof sourcePath === 'string' ? sourcePath : '',
             commentsSessionId: sessionId,
-            commentsEditable: editable !== false,
+            commentsEditable: editable !== false && (() => {
+              try {
+                // 只读审阅：Word 里只读文档可以看批注、不能改；这里用本地开关模拟
+                return window.localStorage.getItem('github-md:comments-readonly') !== '1'
+              } catch {
+                return true
+              }
+            })(),
             commentsAuthor: (() => {
               let name = '我'
               try {

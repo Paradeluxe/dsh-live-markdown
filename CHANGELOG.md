@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.22
+
+- The quoted text at the top of a card is now clickable: it scrolls the anchor into view and flashes the highlighted range, the same way Word takes you to the commented text.
+- Read-only review: with `localStorage['github-md:comments-readonly'] = '1'` the document still shows highlights, margin dots, cards and quote text, but the reply/resolve/delete actions and the floating "+" button disappear, so a reviewer can read threads without changing them.
+- The card body is built from an `actions` fragment that is empty in read-only mode, and `bindCard` returns after wiring hover when editing is off.
+- Verification: gui-comments-quote-check.mjs 6/6 (clickable quote, flash on the anchor, scrollTop 13 → 1172) and gui-comments-readonly-check.mjs 6/6 (comment visible, no action buttons, no "+" button, no page errors).
+
 ## 1.3.21
 
 - "我的" filter in the comment panel: matches the current signature, so switching the signature in the footer moves newly written comments into "mine".
