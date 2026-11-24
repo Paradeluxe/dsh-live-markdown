@@ -271,6 +271,29 @@ fromDocxComments / mapDocxAnchorsToMarkdown / normalizeDurableId / authorColor /
 | `scripts/comments-model-test.mjs` | JSON 往返、锚点前移/移动/丢失、线程与解决/重新打开、删除级联与墓碑、多用户合并（新增/编辑冲突/删除传播/旧版本不覆盖新版本）、docx 导入 46 条 / 23 线程、model → docx → 读回 | **32/32** |
 | `scripts/comments-model-word-check.mjs` | model → 侧车序列化 → 解析 → docx 导出 → **Word COM 读回**：3 条批注、回复挂在根上、线程已解决、两条锚点原文、两位作者 | **5/5** |
 
+## 3.5 UI：正文高亮 + 页边圆点 + 悬浮卡片（已实现：`src/comments/ui.js`）
+
+DSH 的文档面板通常只有 500–700px 宽，Word 那种常驻页边卡片会把正文挤成一列窄条，所以界面采用
+**「高亮 + 页边圆点 + 悬浮卡片」**：
+
+| 元素 | 行为 |
+| --- | --- |
+| 正文高亮 | 被批注的范围铺淡黄色底、下沿一条细线；悬停或打开对应卡片时加深 |
+| 页边圆点 | 每条线程右侧一枚 11px 圆点，垂直对齐锚点首行；已解决的是灰色空心 |
+| 悬浮卡片 | 悬停高亮 / 点圆点 / 刚新建时展开：头像（首字母 + 固定色）、作者、时间、正文、回复列表、回复/解决/删除 |
+| ＋批注 | 选中文字后浮出按钮（键盘选择也会出现），点击后在选区上建一条空批注并展开输入框 |
+| 键盘 | `Ctrl+Enter` 提交、`Esc` 取消或关闭卡片 |
+
+实现要点：
+
+- 高亮是 CM6 的 `Decoration.mark`，带 `data-comment-id`；悬停/点击都按 id 找线程；
+- 圆点与卡片在一个绝对定位层里，位置用 `view.coordsAtPos()` 换算，滚动/改窗口大小时重排；
+- 每次文档变化后用 `resolveStore()` 重新对锚点（偏移失效就按 quote 找），找不到的进左上角「锚点丢失」提示；
+- 所有增删改都走 `model.js`，保存走 `POST /github-md/comments/save`（带 `baseMtimeMs`，磁盘更新时服务端合并）。
+
+**验收**：`gui-comments-check.mjs`（21/21）在真实应用里跑完整流程——打开文档触发 `/comments/load`、选中文字出现＋批注、
+新建/回复/解决都落到侧车文件、正文出现高亮、刷新后圆点仍在、悬停高亮预览卡片、移开收起、点圆点重新打开卡片。
+
 ## 4. 与 Word 互操作## 4. 与 Word 互操作
 
 - **导入**：解包 docx → 解析 5 个部件 → 把 `commentRangeStart/End` 映射到正文纯文本偏移 → 写 comments.json；
@@ -298,6 +321,7 @@ fromDocxComments / mapDocxAnchorsToMarkdown / normalizeDurableId / authorColor /
 | `comments-word-check.mjs`（已实现） | 导出结果交给 Word COM 验收：条数/作者/锚点/线程/已解决（6/6） |
 | `comments-model-test.mjs`（已实现） | 侧车 JSON、锚点重定位、线程/解决/删除墓碑、多用户合并、docx 互通（32/32） |
 | `comments-model-word-check.mjs`（已实现） | model → 侧车 → docx → Word 读回，线程/已解决/锚点/作者全对（5/5） |
+| `gui-comments-check.mjs`（已实现） | 真实应用里的批注 UI：新建、回复、解决、刷新持久化、悬停预览、圆点开关（21/21） |
 | `word-import-real` | `JSpace_Liu_Oct09_2026.docx` 导入批注数 = COM 读到的 Count |
 | `word-export-open` | 我们导出的 docx 用 Word 打开，评论数/线程/解决状态一致 |
 

@@ -10,6 +10,7 @@ import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/p
 import { get } from 'node:https'
 import { promisify } from 'node:util'
 import { dirname, extname, normalize, resolve as resolvePath, sep } from 'node:path'
+import { sidecarPathFor, readStoreFile, writeStoreFile } from './src/comments/store-io.js'
 import { fileURLToPath } from 'node:url'
 
 /** Loader 行名（与 cordis.patch.yml 的 insert 行对应）。 */
@@ -26,6 +27,8 @@ const ASSET_PREFIX = '/github-md/vendor/'
 const WORKSPACE_PREFIX = '/github-md/workspace/'
 /** 版本检测 API 前缀。 */
 const UPDATE_PREFIX = '/github-md/update/'
+/** 批注侧车 API 前缀。 */
+const COMMENTS_PREFIX = '/github-md/comments/'
 /** GitHub 仓库（owner/name）。 */
 const UPDATE_REPO = 'Paradeluxe/dsh-live-markdown'
 /** 版本检测结果缓存时长（GitHub 未认证接口限流 60 次/小时）。 */
@@ -316,6 +319,80 @@ async function saveWorkspaceAsset(root, relative, base64) {
   return { path: relative, absolutePath: target, size: buffer.byteLength }
 }
 
+/**
+ * 批注侧车读写：`<doc>.comments.json`。
+ *   GET  /github-md/comments/load?sessionId=…&path=<工作区相对路径>
+ *   POST /github-md/comments/save  { sessionId, path, store, baseMtimeMs? }
+ * 只允许落在当前 Session 的工作区里；写盘是原子的，磁盘版本更新时按 id 合并，谁的修改都不丢。
+ * @param ctx - Host 根上下文。
+ * @param req - 请求。
+ * @param res - 响应。
+ * @param pathname - 已匹配 COMMENTS_PREFIX 的路径。
+ * @param search - 查询参数。
+ * @returns 无。
+ */
+async function serveCommentsApi(ctx, req, res, pathname, search) {
+  const action = pathname.slice(COMMENTS_PREFIX.length)
+  try {
+    if (action === 'load' && req.method === 'GET') {
+      const root = workspaceRootOf(ctx, search.get('sessionId') ?? '')
+      if (root === null) return sendJson(res, 404, { error: 'workspace-unknown' })
+      const markdownPath = search.get('path') ?? ''
+      const target = resolveInside(root, markdownPath)
+      if (target === null) return sendJson(res, 403, { error: 'outside-workspace' })
+      const sidecar = sidecarPathFor(target)
+      const result = await readStoreFile(sidecar)
+      return sendJson(res, 200, {
+        ok: true,
+        path: markdownPath,
+        sidecar: sidecar.slice(root.length + 1).split(sep).join('/'),
+        exists: result.exists,
+        mtimeMs: result.mtimeMs,
+        error: result.error,
+        store: result.store,
+      })
+    }
+    if (action === 'save' && req.method === 'POST') {
+      let body = ''
+      req.setEncoding('utf8')
+      await new Promise((resolveDone) => {
+        req.on('data', (chunk) => {
+          if (body.length < 8 * 1024 * 1024) body += chunk
+        })
+        req.on('end', () => resolveDone())
+        req.on('error', () => resolveDone())
+      })
+      let payload = null
+      try {
+        payload = body === '' ? null : JSON.parse(body)
+      } catch {
+        payload = null
+      }
+      if (payload === null || typeof payload !== 'object') return sendJson(res, 400, { error: 'bad-json' })
+      const root = workspaceRootOf(ctx, payload.sessionId ?? '')
+      if (root === null) return sendJson(res, 404, { error: 'workspace-unknown' })
+      const markdownPath = typeof payload.path === 'string' ? payload.path : ''
+      if (markdownPath === '') return sendJson(res, 400, { error: 'path-required' })
+      const target = resolveInside(root, markdownPath)
+      if (target === null) return sendJson(res, 403, { error: 'outside-workspace' })
+      if (payload.store === null || typeof payload.store !== 'object') return sendJson(res, 400, { error: 'store-required' })
+      const sidecar = sidecarPathFor(target)
+      const saved = await writeStoreFile(sidecar, payload.store, { baseMtimeMs: typeof payload.baseMtimeMs === 'number' ? payload.baseMtimeMs : null })
+      return sendJson(res, 200, {
+        ok: true,
+        path: markdownPath,
+        sidecar: sidecar.slice(root.length + 1).split(sep).join('/'),
+        mtimeMs: saved.mtimeMs,
+        merged: saved.merged,
+        store: saved.store,
+      })
+    }
+    return sendJson(res, 404, { error: 'unknown-action', action })
+  } catch (error) {
+    return sendJson(res, 500, { error: 'comments-failed', message: error instanceof Error ? error.message : String(error) })
+  }
+}
+
 async function serveWorkspaceApi(ctx, req, res, pathname, search) {
   const action = pathname.slice(WORKSPACE_PREFIX.length)
   try {
@@ -599,6 +676,10 @@ export function apply(ctx) {
         await serveUpdateApi(req, res, url.pathname, url.searchParams)
         return
       }
+      if (url.pathname.startsWith(COMMENTS_PREFIX)) {
+        await serveCommentsApi(ctx, req, res, url.pathname, url.searchParams)
+        return
+      }
       if (url.pathname.startsWith(WORKSPACE_PREFIX)) {
         await serveWorkspaceApi(ctx, req, res, url.pathname, url.searchParams)
         return
@@ -606,5 +687,5 @@ export function apply(ctx) {
       await serveAsset(req, res, url.pathname)
     },
   }), 'github-md: vendor + workspace routes')
-  logger?.info?.('[github-md] routes ready: /github-md/vendor/ and /github-md/workspace/')
+  logger?.info?.('[github-md] routes ready: /github-md/vendor/, /github-md/workspace/ and /github-md/comments/')
 }

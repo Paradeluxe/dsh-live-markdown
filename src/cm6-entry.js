@@ -3,6 +3,7 @@ import { EditorView, Decoration, WidgetType, ViewPlugin, keymap, drawSelection }
 import { defaultKeymap, history, historyKeymap, isolateHistory, redo, redoDepth, undo, undoDepth } from '@codemirror/commands'
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
 import { markdown, insertNewlineContinueMarkup, deleteMarkupBackward } from '@codemirror/lang-markdown'
+import { createCommentsExtension } from './comments/ui.js'
 
 /**
  * Obsidian Live Preview 原型（CM6）：整篇 markdown 文本 + 装饰层。
@@ -4576,6 +4577,12 @@ export function createLivePreview(options) {
           composeState,
           host,
         ),
+        createCommentsExtension({
+          path: typeof options.commentsPath === 'string' ? options.commentsPath : '',
+          sessionId: typeof options.commentsSessionId === 'string' ? options.commentsSessionId : '',
+          editable: options.commentsEditable === true,
+          author: options.commentsAuthor,
+        }),
         EditorView.theme({ '&': { outline: 'none' } }),
         EditorView.domEventHandlers({
           compositionstart() {
