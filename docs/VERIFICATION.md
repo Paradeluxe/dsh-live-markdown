@@ -561,6 +561,8 @@ Four export traps were found by measurement, not documentation, and are recorded
 
 **Caret comments and shortcuts.** `comments-point-anchor-test.mjs` (9/9) checks the zero-length anchor in the model (empty quote, prefix kept, survives an edit before it), the exported XML (`commentRangeStart` immediately followed by `commentRangeEnd` and the reference run, no text in between) and then has **Word open the produced file**: 1 comment, `Scope.Text.Length === 0` — the same shape Word itself creates when you comment at the caret. `gui-comments-keys-check.mjs` (10/10) drives the running app: `Ctrl+Alt+M` opens the composer on a selection, the card shows the quoted text, the same shortcut on an empty selection stores `start === end` with an empty quote, the body renders the small marker, clicking it opens a card that says "（插入点批注，没有选中文字）", and Escape closes the card.
 
+**Author filter and expand-all.** `gui-comments-allopen-check.mjs` (7/7): with one comment by "我" and one by "Bob Wu", the panel's "我的" filter leaves exactly one; "展开" opens both cards, their tops come out 126px apart (162.06 / 288.06) so they do not overlap, the button label flips to "收起", and collapsing closes both.
+
 **Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
 
 **Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).

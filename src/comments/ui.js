@@ -432,8 +432,18 @@ export function createCommentsExtension(options = {}) {
 
     openCard(commentId) {
       this.openId = commentId
+      this.allOpen = false
       for (const [id, card] of this.cards) card.classList.toggle('is-open', id === commentId)
       for (const [id, dot] of this.dots) dot.classList.toggle('is-open', id === commentId)
+      this.layout()
+    }
+
+    /** Word 的「显示标记」：把页边所有批注气泡一起摊开。 */
+    setAllOpen(open) {
+      this.allOpen = open === true
+      if (this.allOpen) this.openId = null
+      for (const [, card] of this.cards) card.classList.toggle('is-open', this.allOpen)
+      for (const [, dot] of this.dots) dot.classList.remove('is-open')
       this.layout()
     }
 
@@ -471,7 +481,7 @@ export function createCommentsExtension(options = {}) {
         }
         card.dataset.commentId = thread.id
         card.setAttribute('data-resolved', thread.resolved ? '1' : '0')
-        card.classList.toggle('is-open', this.openId === thread.id)
+        card.classList.toggle('is-open', this.allOpen === true || this.openId === thread.id)
         card.innerHTML = this.cardHtml(thread)
         this.bindCard(card, thread)
       }
@@ -509,6 +519,7 @@ export function createCommentsExtension(options = {}) {
 
     visibleThreads() {
       const threads = buildThreads(this.store.comments)
+      if (this.filter === 'mine') return threads.filter((thread) => thread.author.name === context.author.name)
       if (this.filter === 'open') return threads.filter((thread) => thread.resolved !== true)
       if (this.filter === 'resolved') return threads.filter((thread) => thread.resolved === true)
       return threads
@@ -522,13 +533,15 @@ export function createCommentsExtension(options = {}) {
       this.panel.classList.add('is-open')
       const threads = this.visibleThreads()
       const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '') + '</span></span></button>').join('')
-      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
+      this.panel.querySelector('[data-act="expand"]').addEventListener('click', (event) => { event.preventDefault(); this.setAllOpen(this.allOpen !== true); this.renderPanel(); this.layout() })
       this.panel.querySelector('[data-act="copy"]').addEventListener('click', (event) => { event.preventDefault(); void this.copyList() })
       this.panel.querySelector('[data-act="close"]').addEventListener('click', (event) => { event.preventDefault(); this.togglePanel(false) })
       this.panel.querySelector('[data-act="prev"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(-1) })
       this.panel.querySelector('[data-act="next"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(1) })
       this.panel.querySelector('[data-act="filter-all"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('all') })
       this.panel.querySelector('[data-act="filter-open"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('open') })
+      this.panel.querySelector('[data-act="filter-mine"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('mine') })
       this.panel.querySelector('[data-act="filter-resolved"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('resolved') })
       this.panel.querySelector('[data-act="import"]').addEventListener('click', (event) => { event.preventDefault(); void this.importFromDocx() })
       this.panel.querySelector('[data-act="export"]').addEventListener('click', (event) => { event.preventDefault(); void this.exportToDocx() })
@@ -788,7 +801,16 @@ export function createCommentsExtension(options = {}) {
         entry.dot.style.left = Math.max(8, right - 20) + 'px'
         entry.dot.style.top = (dotTop + 1) + 'px'
         entry.card.style.left = Math.max(8, right - CARD_WIDTH - 30) + 'px'
-        entry.card.style.top = Math.max(8, entry.top - 6) + 'px'
+        if (this.allOpen !== true) entry.card.style.top = Math.max(8, entry.top - 6) + 'px'
+      }
+      if (this.allOpen === true) {
+        // 全部展开时按顺序往下排，后一张至少在前一张下方 8px
+        let cursor = 8
+        for (const entry of entries) {
+          const cardTop = Math.max(cursor, entry.top - 6)
+          entry.card.style.top = cardTop + 'px'
+          cursor = cardTop + entry.card.offsetHeight + 8
+        }
       }
       // 顶部工具条固定在可视区（滚动时跟着 scrollTop 走，看起来像钉住）
       const chipTop = scrollTop + 8

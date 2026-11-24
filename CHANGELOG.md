@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.21
+
+- "我的" filter in the comment panel: matches the current signature, so switching the signature in the footer moves newly written comments into "mine".
+- "展开" / "收起" in the panel header spreads out every comment card at once (the equivalent of Word's "show markup" balloons): cards are laid out in anchor order, pushed down when they would overlap, and the button flips to "收起".
+- Verification: gui-comments-allopen-check.mjs 7/7 (mine filter keeps one comment, expand opens both cards with tops 126px apart, the label flips, collapse closes them, no page errors).
+
 ## 1.3.20
 
 - Ctrl+Alt+M inserts a comment, matching Word's default shortcut: on a selection it anchors to the range, on an empty selection it anchors to the caret.
