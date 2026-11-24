@@ -13,7 +13,7 @@
  */
 import { Decoration, EditorView, ViewPlugin } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
-import { buildThreads, createComment, createReply, deleteComment, editComment, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
+import { buildThreads, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
 const CARD_WIDTH = 264
@@ -51,6 +51,31 @@ const CSS = `
 .gh-md-comments-add:hover{color:#fff;background:var(--dsw-alias-state-info-primary,#0969da);border-color:transparent}
 .gh-md-comments-add.is-visible{display:inline-flex}
 .gh-md-comments-lost{position:absolute;left:12px;top:8px;pointer-events:auto;max-width:420px;padding:6px 10px;border-radius:8px;border:1px solid var(--dsw-alias-state-warning-primary,#b4690e);color:var(--dsw-alias-state-warning-primary,#b4690e);background:rgb(180 105 14 / 8%);font-size:11px}
+.gh-md-comments-chip{position:absolute;pointer-events:auto;display:none;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);color:var(--dsw-alias-label-secondary,#57606a);font-size:12px;cursor:pointer;box-shadow:0 1px 4px rgb(0 0 0 / 8%)}
+.gh-md-comments-chip.is-visible{display:inline-flex}
+.gh-md-comments-chip:hover{color:var(--dsw-alias-label-primary,#1f2328)}
+.gh-md-comments-chip-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-state-info-primary,#0969da);font-weight:600}
+.gh-md-comments-panel{position:absolute;pointer-events:auto;display:none;width:300px;max-height:62vh;box-sizing:border-box;border-radius:10px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-2,#fff);box-shadow:0 8px 28px rgb(0 0 0 / 18%);overflow:auto;z-index:30}
+.gh-md-comments-panel.is-open{display:flex;flex-direction:column}
+.gh-md-comments-panel-head{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--dsw-alias-bg-layer-2,#fff);border-bottom:1px solid var(--dsw-alias-border-l1,#eaeef2);z-index:1}
+.gh-md-comments-panel-title{font-weight:600;color:var(--dsw-alias-label-primary,#1f2328);font-size:12px;margin-right:auto}
+.gh-md-comments-nav{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#57606a);font:inherit;font-size:13px;line-height:1;padding:3px 6px;border-radius:5px;cursor:pointer}
+.gh-md-comments-nav:hover{background:var(--dsw-alias-interactive-bg-hover,rgb(0 0 0 / 6%))}
+.gh-md-comments-filter{display:flex;gap:4px;padding:6px 10px 0}
+.gh-md-comments-filter button{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#57606a);font:inherit;font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer}
+.gh-md-comments-filter button[aria-pressed="true"]{border-color:var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-1,#f6f8fa);color:var(--dsw-alias-label-primary,#1f2328)}
+.gh-md-comments-list{display:flex;flex-direction:column;padding:6px 6px 8px}
+.gh-md-comments-item{display:flex;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent;text-align:left;background:transparent;font:inherit;color:inherit}
+.gh-md-comments-item:hover{background:var(--dsw-alias-interactive-bg-hover,rgb(0 0 0 / 6%))}
+.gh-md-comments-item[data-active="1"]{border-color:var(--dsw-alias-state-info-primary,#0969da)}
+.gh-md-comments-item-main{min-width:0;flex:1}
+.gh-md-comments-item-snippet{color:var(--dsw-alias-label-primary,#1f2328);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gh-md-comments-item-meta{color:var(--dsw-alias-label-tertiary,#8c959f);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gh-md-comments-item[data-resolved="1"]{opacity:.66}
+.gh-md-comments-author{margin-top:auto;display:flex;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--dsw-alias-border-l1,#eaeef2);background:var(--dsw-alias-bg-layer-2,#fff);font-size:11px;color:var(--dsw-alias-label-tertiary,#8c959f)}
+.gh-md-comments-author input{flex:1;min-width:0;font:inherit;font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid var(--dsw-alias-border-l2,#d0d7de);background:var(--dsw-alias-bg-layer-1,#f6f8fa);color:inherit}
+.gh-md-comments-toast{position:absolute;pointer-events:none;right:12px;padding:4px 10px;border-radius:6px;background:var(--dsw-alias-state-success-primary,#1a7f37);color:#fff;font-size:11px;opacity:0;transition:opacity .2s ease;z-index:32}
+.gh-md-comments-toast.is-visible{opacity:1}
 `
 
 function ensureStyle() {
@@ -138,6 +163,26 @@ export function createCommentsExtension(options = {}) {
       this.addButton.textContent = '＋ 批注'
       view.scrollDOM.appendChild(this.layer)
       view.scrollDOM.appendChild(this.addButton)
+
+      this.panelOpen = false
+      this.filter = 'all'
+      this.chip = document.createElement('button')
+      this.chip.type = 'button'
+      this.chip.className = 'gh-md-comments-chip'
+      this.chip.title = '批注列表'
+      this.chip.addEventListener('mousedown', (event) => { event.preventDefault(); event.stopPropagation() })
+      this.chip.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        this.togglePanel()
+      })
+      this.panel = document.createElement('div')
+      this.panel.className = 'gh-md-comments-panel'
+      this.toast = document.createElement('div')
+      this.toast.className = 'gh-md-comments-toast'
+      view.scrollDOM.appendChild(this.chip)
+      view.scrollDOM.appendChild(this.panel)
+      view.scrollDOM.appendChild(this.toast)
 
       this.onMouseUp = () => this.syncAddButton()
       this.onScroll = () => this.layout()
@@ -244,6 +289,7 @@ export function createCommentsExtension(options = {}) {
           this.store = parseStore(payload.store)
           this.lastSavedSignature = serializeStore(this.store)
           this.refresh()
+          this.showToast('已与磁盘上的批注合并')
         }
         if (typeof payload.mtimeMs === 'number') this.baseMtimeMs = payload.mtimeMs
       } catch {}
@@ -411,6 +457,107 @@ export function createCommentsExtension(options = {}) {
         this.lostNotice.remove()
         this.lostNotice = undefined
       }
+      this.renderChip()
+      this.renderPanel()
+    }
+
+    renderChip() {
+      const total = buildThreads(this.store.comments).length
+      this.chip.classList.toggle('is-visible', total > 0)
+      this.chip.innerHTML = '批注 <span class="gh-md-comments-chip-count">' + total + '</span>'
+    }
+
+    visibleThreads() {
+      const threads = buildThreads(this.store.comments)
+      if (this.filter === 'open') return threads.filter((thread) => thread.resolved !== true)
+      if (this.filter === 'resolved') return threads.filter((thread) => thread.resolved === true)
+      return threads
+    }
+
+    renderPanel() {
+      if (this.panelOpen !== true) {
+        this.panel.classList.remove('is-open')
+        return
+      }
+      this.panel.classList.add('is-open')
+      const threads = this.visibleThreads()
+      const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '') + '</span></span></button>').join('')
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><label class="gh-md-comments-author">署名<input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="你的名字"></label>'
+      this.panel.querySelector('[data-act="close"]').addEventListener('click', (event) => { event.preventDefault(); this.togglePanel(false) })
+      this.panel.querySelector('[data-act="prev"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(-1) })
+      this.panel.querySelector('[data-act="next"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(1) })
+      this.panel.querySelector('[data-act="filter-all"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('all') })
+      this.panel.querySelector('[data-act="filter-open"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('open') })
+      this.panel.querySelector('[data-act="filter-resolved"]').addEventListener('click', (event) => { event.preventDefault(); this.setFilter('resolved') })
+      for (const item of Array.from(this.panel.querySelectorAll('.gh-md-comments-item[data-comment-id]'))) {
+        item.addEventListener('click', (event) => {
+          event.preventDefault()
+          this.jumpTo(item.getAttribute('data-comment-id'))
+        })
+      }
+      const authorInput = this.panel.querySelector('.gh-md-comments-author input')
+      if (authorInput !== null) {
+        const apply = () => {
+          const name = authorInput.value.trim()
+          if (name === '') return
+          this.setAuthorName(name)
+        }
+        authorInput.addEventListener('change', apply)
+        authorInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') { event.preventDefault(); apply(); authorInput.blur() }
+          if (event.key === 'Escape') { event.preventDefault(); authorInput.blur() }
+        })
+      }
+    }
+
+    setAuthorName(name) {
+      const trimmed = String(name ?? '').trim()
+      if (trimmed === '') return
+      context.author = { ...context.author, name: trimmed, initials: initialsOf(trimmed) }
+      try { window.localStorage.setItem('github-md:comment-author', trimmed) } catch {}
+      this.renderPanel()
+    }
+
+    togglePanel(force) {
+      this.panelOpen = force === undefined ? this.panelOpen !== true : force === true
+      this.renderPanel()
+      this.layout()
+    }
+
+    setFilter(filter) {
+      this.filter = filter
+      this.renderPanel()
+    }
+
+    navigate(direction) {
+      const threads = this.visibleThreads()
+      if (threads.length === 0) return
+      const index = threads.findIndex((thread) => thread.id === this.openId)
+      const nextIndex = index < 0 ? (direction > 0 ? 0 : threads.length - 1) : (index + direction + threads.length) % threads.length
+      this.jumpTo(threads[nextIndex].id)
+    }
+
+    jumpTo(commentId) {
+      const thread = buildThreads(this.store.comments).find((item) => item.id === commentId)
+      if (thread === undefined) return
+      // 面板在窄面板里会盖住卡片，跳转后先收起面板，让卡片完整可见
+      this.panelOpen = false
+      this.openCard(commentId)
+      try {
+        const position = Math.min(Math.max(0, thread.anchor.start ?? 0), this.view.state.doc.length)
+        this.view.dispatch({ effects: EditorView.scrollIntoView(position, { y: 'center' }) })
+      } catch {}
+      this.renderPanel()
+      this.layout()
+    }
+
+    showToast(message) {
+      this.toast.textContent = message
+      this.toast.classList.add('is-visible')
+      if (this.toastTimer !== undefined) window.clearTimeout(this.toastTimer)
+      this.toastTimer = window.setTimeout(() => {
+        this.toast.classList.remove('is-visible')
+      }, 2200)
     }
 
     cardHtml(thread) {
@@ -483,6 +630,14 @@ export function createCommentsExtension(options = {}) {
         card.style.left = cardLeft + 'px'
         card.style.top = cardTop + 'px'
       }
+      // 顶部工具条固定在可视区（滚动时跟着 scrollTop 走，看起来像钉住）
+      const chipTop = scrollTop + 8
+      this.chip.style.left = Math.max(8, right - 96) + 'px'
+      this.chip.style.top = chipTop + 'px'
+      this.panel.style.left = Math.max(8, right - 312) + 'px'
+      this.panel.style.top = (chipTop + 34) + 'px'
+      this.toast.style.top = (chipTop + 2) + 'px'
+      if (this.lostNotice !== undefined) this.lostNotice.style.top = (chipTop + 34) + 'px'
     }
 
     update(update) {
