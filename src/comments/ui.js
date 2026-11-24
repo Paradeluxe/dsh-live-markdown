@@ -286,10 +286,12 @@ export function createCommentsExtension(options = {}) {
         const payload = await response.json()
         if (payload === null || typeof payload !== 'object' || payload.ok !== true) return
         if (payload.merged === true) {
+          const knownIds = new Set(this.store.comments.map((comment) => comment.id))
           this.store = parseStore(payload.store)
           this.lastSavedSignature = serializeStore(this.store)
+          const incomingAuthors = Array.from(new Set(this.store.comments.filter((comment) => knownIds.has(comment.id) === false).map((comment) => comment.author.name))).filter((name) => name !== '')
           this.refresh()
-          this.showToast('已与磁盘上的批注合并')
+          this.showToast(incomingAuthors.length > 0 ? '已合并别人新加的批注（' + incomingAuthors.join('、') + '）' : '已与磁盘上的批注合并')
         }
         if (typeof payload.mtimeMs === 'number') this.baseMtimeMs = payload.mtimeMs
       } catch {}

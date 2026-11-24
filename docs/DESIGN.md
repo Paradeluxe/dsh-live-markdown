@@ -2889,3 +2889,35 @@ return pkg.version !== target.version || ((target.spec.startsWith("link:") || pk
 位置不变：追加行在表格下方居中（表格底 + 2px），追加列在表格右边缘垂直居中（右 + 2px）。插入按钮几何常量 16/8 → 18/9，重叠判定同步。
 
 **为什么去掉 resize 光标**：`s-resize` / `e-resize` 表示「拖拽改变尺寸」，而这两个按钮是「点击追加」；鼠标从表格正文移到边缘按钮时形状由文本/指针跳成双箭头，是用户反馈的「光标变化怪怪的」。三枚按钮语义相同，光标就应当一致为 `pointer`。
+
+---
+
+## 173. v1.3.18：Word 批注子系统（`word-comments` 分支）
+
+**目标**：把 Word 的批注做到「跟 Word 完全一致」，并且支持多人批注。做法是先量出 Word 的真实行为（一份真实的 46 条批注 docx、Word COM 只读检查、逐条改 XML 再让 Word 读回），再按测量结果实现。
+
+**分层**（都在 `src/comments/`）：
+
+| 文件 | 职责 | 依赖 |
+| --- | --- | --- |
+| `zip.js` / `zip-write.js` | 只读 ZIP 目录与条目、写 ZIP（deflate/store、CRC32、UTF-8 名字） | `node:zlib` |
+| `docx-comments.js` | 解析 `comments.xml` / `commentsExtended.xml` / `commentsIds.xml` / `commentsExtensible.xml` / `people.xml` 与正文锚点，还原线程、已解决、作者、时间 | 上面两个 |
+| `docx-export.js` | 剥掉旧批注、注入 `w:commentRangeStart/End` + `w:commentReference`、生成五个部件、补样式与 `compatibilityMode=15` | 同上 |
+| `model.js` | 侧车模型：锚点（偏移 + 原文 + 32 字前后文）、线程、tombstone、`mergeStores`、docx 互转 | 纯函数 |
+| `store-io.js` | 侧车读写的文件层：路径推导、原子写、`baseMtimeMs` 冲突合并 | `node:fs/promises` |
+| `import.js` | docx → 侧车：读、转模型、把偏移映射到 markdown、与已有侧车合并 | 上面三个 |
+| `ui.js` | CM6 扩展：高亮、页边圆点、悬浮卡片、批注面板、署名 | `@codemirror/view` |
+
+**Host 路由**（`index.js`，全部按 Session 工作区做前缀校验）：`GET /github-md/comments/load`、`POST /github-md/comments/save`、`POST /github-md/comments/import`。
+
+**关键测量结论**（详见 `docs/WORD-COMMENTS.md` §1）：
+
+- `w15:paraId` / `w16cid:durableId` 必须 **小于 0x80000000**，否则 Word 读回时线程和已解决状态会丢；
+- 每条批注的每个段落要有**各自唯一**的 paraId，`commentEx` 指向该批注**最后一段**；
+- 批注段落要带 `w:rsidR` / `w:rsidRDefault`，否则 Word 完全忽略 `commentsExtended`；
+- `compatibilityMode` 必须是 15，否则 Word 显示旧式批注；
+- Word 对「范围结束在段落末尾」的锚点会报长度 0 的 Scope（Word 自己的文件也这样，不是 bug）。
+
+**侧车格式**：`<doc>.comments.json`，`version: 1`，每条评论带 `author{name,initials,email,color}`、`createdAt`/`modifiedAt`、`resolved`、`parentId`、`anchor{start,end,quote,prefix,suffix}`、`deleted`。`mergeStores` 以 id 为准：tombstone 赢、`modifiedAt` 新的赢、不同 id 两边都留；`modifiedAt` 由 `nextIso()` 保证严格递增。
+
+**UI 取舍**：DSH 的文档面板常见宽度 500–700px，Word 式常驻页边卡片会把正文压成窄条，所以改成「高亮 + 页边圆点 + 悬浮卡片 + 面板列表」；跳转时收起面板，避免面板盖住卡片。

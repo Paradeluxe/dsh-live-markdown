@@ -543,6 +543,22 @@ Probe document `_gui_resp.md` (heading + long paragraph + 120x80 image) opened o
 
 Probe `probe-table-pills.mjs` records the id/after computed styles for the report; `probe-table-insert.mjs` confirms the insert chip has the same 18x18 / 6px / 1px / pointer box as the append chips.
 
+## Word-compatible comments (1.3.18)
+
+Measured against real Word, not against the schema.
+
+**Reading.** `comments-test.mjs` (27/27) opens four real manuscripts from `docx-testbed` and checks the parsed model: `test_nested.docx` 48 comments in 24 threads, `test_with_comments.docx` 46, `test_overlap.docx` 49, `JSpace_Liu_Oct09_2026.docx` 22 with 3 resolved threads. `tests/..`/fixtures contain no synthetic XML: every assertion is over bytes Word produced. The reader finds the same `done` flags Word reports through COM for the JSpace file (6 comment paragraphs with `w15:done="1"` = 3 threads).
+
+**Writing.** `comments-export-test.mjs` (26/26) covers the serializer; `comments-word-check.mjs` (6/6) then opens the exported file in **Word 2019 over COM** and reads the comments back: same count, same authors, same thread parents, same resolved flags, anchors resolving to the expected text. `comments-model-word-check.mjs` (5/5) does the same through the sidecar model (`toDocxComments` → `exportDocxComments` → Word).
+
+Four export traps were found by measurement, not documentation, and are recorded in `docs/WORD-COMMENTS.md` §1.8: paraId/durableId must stay below `0x80000000`; each comment paragraph needs its own paraId with `commentEx` pointing at the last one; comment paragraphs need `w:rsidR`/`w:rsidRDefault`; `compatibilityMode` must be 15.
+
+**Sidecar.** `comments-store-test.mjs` (13/13): path mapping, missing and broken files, atomic write with no leftover temp file, and the stale-save case (a file changed on disk after the client loaded it) merging instead of overwriting.
+
+**Import.** `comments-import-test.mjs` (10/10): a real 46-comment docx imports completely, 23 threads, 42 anchors mapped exactly and 4 empty quotes reported as lost, authors preserved, local comments kept when merging, and a second import of the same file does not duplicate anything (ids derive from the durableId).
+
+**UI, in the running app.** `gui-comments-check.mjs` (21/21): opening a document calls `/comments/load`; selecting text shows the + button; the composer writes a comment whose sidecar entry carries the exact quote and author; the body shows a highlight; the reply lands under the root; resolve sets the flag; after a reload the margin dot is still there; hovering the highlight previews the card, leaving closes it, clicking the dot reopens it. `gui-comments-panel-check.mjs` (12/12): chip count, panel list, three filters, next navigation cycles, the signature persists and a new comment uses the new author. `gui-comments-import-check.mjs` (11/11): the panel button pulls a resolved root plus its reply from the sibling docx into the sidecar next to a local comment, keeping authors, the resolved flag and the highlights. `gui-comments-merge-check.mjs` (7/7): a comment written to the sidecar by someone else after the page loaded merges in on the next save, all three comments survive, the toast names the other author, and the merged comment gets its own margin dot.
+
 ## What is *not* verified
 
 - Windows/macOS/Linux UI differences, dark-theme colour accuracy, and screen readers.

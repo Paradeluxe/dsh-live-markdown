@@ -2,6 +2,19 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.18
+
+Word-compatible comments, developed on the `word-comments` branch forked from v1.3.17.
+
+- New sidecar model: `<doc>.comments.json` beside the markdown, with Web-Annotation style anchors (offset + quote + 32-char prefix/suffix), tombstones for deletes, id-based merge and strictly increasing `modifiedAt`.
+- Reader for the five OOXML comment parts (comments, commentsExtended, commentsIds, commentsExtensible, people) with no dependencies: threads via `w15:paraId`/`paraIdParent`, resolved via `w15:done`, authors, dates and durable ids.
+- Writer that puts comments back into a .docx as native Word comments (anchors, `commentsExtended` threading, `commentsIds`, `people`, compatibility mode 15); verified in real Word over COM.
+- Editor UI: yellow highlights on commented ranges, a margin dot per thread (grey when resolved), a floating Word-style card with avatar/author/time/body/replies and reply/resolve/delete, a floating + button on any selection (mouse or keyboard), Ctrl+Enter submit, Esc cancel.
+- Comment panel behind a "批注 N" chip: filters 全部 / 未解决 / 已解决, prev/next navigation, jump-to-anchor, and a signature field (localStorage) so each comment records its author; new comments that arrive from someone else's save merge in with a toast naming them.
+- "从 Word 导入" button: reads the sibling `.docx` (`paper.md` ↔ `paper.docx`), maps anchors onto the markdown text (exact quote first, paragraph fallback), merges into the sidecar and is idempotent on re-import.
+- Host routes `GET /github-md/comments/load`, `POST /github-md/comments/save`, `POST /github-md/comments/import`, all scoped to the session workspace; saves merge with a newer file on disk instead of overwriting it.
+- Verification: comments read 27/27, export 26/26 + Word COM 6/6, model 32/32 + Word COM 5/5, store 13/13, import 10/10, UI 21/21, panel 12/12, import button 11/11, multi-user merge 7/7.
+
 ## 1.3.17
 
 - Table affordances now share one control: the append-row and append-column targets were 64x16 and 16x64 transparent strips (radius 0 and 6px, cursors `s-resize` / `e-resize`) while the between-rows insert button was a 16x16 bordered chip. All three are now 18x18, radius 6px, 1px hairline, raised surface, `pointer` cursor, and the same 12px plus icon.
