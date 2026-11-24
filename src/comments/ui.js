@@ -14,7 +14,7 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { CLIPBOARD_MIME, applyPastePayload, buildCopyPayload } from './clipboard.js'
-import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
+import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, mergeStores, parseStore, resolveStore, serializeStore, setResolved } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
 const CARD_WIDTH = 264
@@ -301,7 +301,43 @@ export function createCommentsExtension(options = {}) {
         if (id === null) return
         this.openCard(this.openId === id ? null : id)
       })
+      // 准实时：别人保存到同一份侧车时，这里 2.5s 内能看到（Word 云端共编的轻量等价物）
+      this.pollTimer = window.setInterval(() => { void this.poll() }, 2500)
       void this.load()
+    }
+
+    async poll() {
+      if (context.path === '' || context.sessionId === '') return
+      if (document.hidden === true || this.polling === true) return
+      this.polling = true
+      try {
+        const query = '/github-md/comments/load?sessionId=' + encodeURIComponent(context.sessionId) + '&path=' + encodeURIComponent(context.path)
+        const response = await fetch(query, { headers: { accept: 'application/json' } })
+        if (response.ok === false) return
+        const payload = await response.json()
+        if (payload === null || typeof payload !== 'object' || payload.ok !== true) return
+        const mtimeMs = typeof payload.mtimeMs === 'number' ? payload.mtimeMs : null
+        if (mtimeMs === null || mtimeMs === this.baseMtimeMs) return
+        const remote = parseStore(payload.store)
+        const known = new Set(this.store.comments.map((comment) => comment.id))
+        const incoming = remote.comments.filter((comment) => known.has(comment.id) === false)
+        if (incoming.length === 0 && remote.comments.length === this.store.comments.length) {
+          this.baseMtimeMs = mtimeMs
+          return
+        }
+        this.store = mergeStores(remote, this.store)
+        this.lastSavedSignature = serializeStore(this.store)
+        this.baseMtimeMs = mtimeMs
+        this.refresh()
+        if (incoming.length > 0) {
+          const names = Array.from(new Set(incoming.map((comment) => comment.author.name))).filter((name) => name !== '')
+          this.showToast('检测到新的批注' + (names.length > 0 ? '（' + names.join('、') + '）' : ''))
+        }
+      } catch {
+        // 轮询失败静默重试
+      } finally {
+        this.polling = false
+      }
     }
 
     async load() {
@@ -909,6 +945,7 @@ export function createCommentsExtension(options = {}) {
       this.view.scrollDOM.removeEventListener('scroll', this.onScroll)
       window.removeEventListener('resize', this.onResize)
       document.removeEventListener('keydown', this.onEscape, true)
+      if (this.pollTimer !== undefined) window.clearInterval(this.pollTimer)
       this.layer.remove()
       this.addButton.remove()
     }

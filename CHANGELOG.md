@@ -2,6 +2,12 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.25
+
+- Near-real-time sync: while a document is open the client polls the sidecar every 2.5s; when another author's save bumps the mtime it merges with mergeStores(remote, local), re-renders and toasts "检测到新的批注（作者）" without a page reload. Merging never writes back (a local save is the only writer) and polling pauses while document.hidden.
+- Verification: gui-comments-live-check.mjs 7/7 — with the page open, the sidecar is written behind its back as "Carol Li"; the dot, the highlight, the toast naming the author and the card body all appear within 2.5s with no reload.
+- README now carries one acceptance table covering all 25 suites / 280 assertions with their counts.
+
 ## 1.3.24
 
 - Editing your own comment: the card shows an "编辑" action only when the comment's author matches the current signature, which opens the composer prefilled with the body and saves through editComment().

@@ -837,6 +837,51 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.25：别人的批注会自己出现（准实时）
+
+打开着的文档每 2.5 秒检查一次侧车：别人保存了新批注时，**不刷新页面**就会出现在正文里，并提示
+「检测到新的批注（某某）」。这是 Word 云端共编「实时出现」的轻量等价物。
+
+- 用 mtime 判断有没有变化，没变化不重画；
+- 有变化时先 `mergeStores(远端, 本地)`：远端的新批注进来，本地还没保存的改动不丢；
+- 合并不写盘（不触发保存风暴），下一次本地保存时自然带上；
+- 页面在后台（`document.hidden`）时不轮询。
+
+**验收**：`gui-comments-live-check.mjs` **7/7**——打开文档后直接改盘上的侧车（模拟另一台机器写入，作者 Carol Li），
+不刷新页面，圆点、正文高亮、toast 作者名、卡片正文全部在 2.5 秒内出现。
+
+## 全部验收总表
+
+| 套件 | 覆盖 | 结果 |
+| --- | --- | --- |
+| `comments-test.mjs` | docx 批注读取（真实文档） | 27/27 |
+| `comments-export-test.mjs` | 写回 docx（结构 + 幂等） | 26/26 |
+| `comments-word-check.mjs` | 写回结果由真实 Word 读回 | 6/6 |
+| `comments-jspace-roundtrip.mjs` | 真实稿件往返，Word 报告同样数字 | 6/6 |
+| `comments-model-test.mjs` | 侧车模型（锚点/线程/合并） | 32/32 |
+| `comments-model-word-check.mjs` | 模型 → docx → Word | 5/5 |
+| `comments-store-test.mjs` | 侧车读写、原子写、冲突合并 | 13/13 |
+| `comments-import-test.mjs` | docx → 侧车导入、幂等 | 10/10 |
+| `comments-export-sidecar-test.mjs` | 侧车 → docx 导出、反向映射 | 8/8 |
+| `comments-point-anchor-test.mjs` | 光标处（0 长度）批注 + Word | 9/9 |
+| `comments-clipboard-test.mjs` | 复制粘贴带批注的 payload | 13/13 |
+| `comments-permissions-test.mjs` | 只有作者能改 | 7/7 |
+| `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
+| `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
+| `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
+| `gui-comments-export-check.mjs` | 导出按钮 | 7/7 |
+| `gui-comments-details-check.mjs` | 堆叠/提及/复制清单 | 8/8 |
+| `gui-comments-keys-check.mjs` | 快捷键/引文/插入点 | 10/10 |
+| `gui-comments-allopen-check.mjs` | 我的筛选/展开全部 | 7/7 |
+| `gui-comments-quote-check.mjs` | 引文跳转 + 闪烁 | 6/6 |
+| `gui-comments-readonly-check.mjs` | 只读审阅 | 6/6 |
+| `gui-comments-clipboard-check.mjs` | 应用内复制粘贴 | 8/8 |
+| `gui-comments-permissions-check.mjs` | 应用内权限 | 8/8 |
+| `gui-comments-live-check.mjs` | 准实时同步 | 7/7 |
+| `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
+
+**合计 25 个套件、280 项断言，全绿。**
+
 ## 1.3.24：改自己的批注，别人的只读
 
 | 行为 | Word | 我们 |
