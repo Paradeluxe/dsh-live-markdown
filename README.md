@@ -837,6 +837,19 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.31：别人的新批注会标「新」
+
+Word 里别人新写的批注会以「新批注」样式出现，读完就恢复正常。这一版做同一件事：
+
+- 侧车新增 `readers: { "署名": "读到的时间" }`（可选字段，旧侧车照样能读）；
+- 打开文档时按**自己的署名**算：晚于我上次已读、且不是我自己写的批注 → 标记为「新」；
+- 徽标变成「批注 N **1 新**」、页边圆点加蓝色光环、面板条目带「新」标签；
+- 面板头部「**标为已读**」把当前时间写进 `readers`，标记全部清空（回复、修改也算新，不只是新增）。
+
+**验收**：`comments-unread-test.mjs` **14/14**（读前/读后、自己的批注不算新、别人的视角、 serialize 往返、
+坏时间戳忽略、已删除不算新、新回复让整条线程变新）；`gui-comments-unread-check.mjs` **9/9**
+（徽标「1 新」、圆点光环、列表「新」标签、点「标为已读」后清空并写回侧车、批注本体不动）。
+
 ## 1.3.30：把「从 Word 粘贴批注」这件事量清楚
 
 上一版把「从 Word 复制带批注的文字」标成部分实现，理由是「Word 把批注藏在 RTF/HTML 里」。这一版去**真实 Word 里量**：
@@ -970,6 +983,7 @@ MIT — see [LICENSE](LICENSE).
 | `comments-permissions-test.mjs` | 只有作者能改 | 7/7 |
 | `comments-perf-test.mjs` | 400 条批注的性能 | 5/5 |
 | `comments-reattach-test.mjs` | 丢失锚点的重新挂载 | 9/9 |
+| `comments-unread-test.mjs` | 新批注（readers）判定 | 14/14 |
 | `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
 | `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
 | `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
@@ -985,9 +999,10 @@ MIT — see [LICENSE](LICENSE).
 | `gui-comments-print-check.mjs` | 打印批注清单 | 8/8 |
 | `gui-comments-lost-check.mjs` | 丢失锚点恢复（应用内） | 9/9 |
 | `gui-comments-toggle-check.mjs` | 批注总开关 | 10/10 |
+| `gui-comments-unread-check.mjs` | 新批注标记（应用内） | 9/9 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 30 个套件、321 项断言，全绿。**
+**合计 32 个套件、344 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

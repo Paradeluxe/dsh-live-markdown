@@ -2,6 +2,13 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.31
+
+- New-comment markers, the equivalent of Word's "new comments" styling: the sidecar gains an optional readers map (signature → last-read timestamp), unreadThreads() marks threads whose comments are newer than my pointer and were not written by me, and the UI shows the count on the chip ("批注 N · M 新"), a blue ring on the margin dot and a "新" tag in the panel list. Edits and replies count as new, not just additions.
+- The panel header gains "标为已读", which writes the current timestamp into readers and clears the markers; the comment data itself is untouched.
+- Old sidecars without a readers field keep working (the field is optional in parseStore/serializeStore).
+- Verification: comments-unread-test.mjs 14/14 and gui-comments-unread-check.mjs 9/9. README acceptance table is now 32 suites / 344 assertions, re-summed by script.
+
 ## 1.3.30
 
 - Measured, instead of assumed, where Word puts comments when you copy commented text: the Rich Text Format payload is 43,322 characters with 0 occurrences of \atnid, the HTML payload is 42,029 characters with no comment body, and the clipboard format list includes Embed Source / ObjectLink. Word-to-Word comment transfer therefore travels in the native OLE embedded fragment, not in RTF or HTML.

@@ -14,7 +14,7 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { CLIPBOARD_MIME, applyPastePayload, buildCopyPayload } from './clipboard.js'
-import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, mergeStores, parseStore, reattachComment, resolveStore, serializeStore, setResolved } from './model.js'
+import { buildThreads, canEditComment, createComment, createReply, deleteComment, editComment, initialsOf, markRead, mergeStores, parseStore, reattachComment, resolveStore, serializeStore, setResolved, unreadThreads } from './model.js'
 
 const STYLE_ID = 'gh-md-comments-style'
 const CARD_WIDTH = 264
@@ -26,6 +26,9 @@ const CSS = `
 .gh-md-comment-dot{position:fixed;pointer-events:auto;width:11px;height:11px;border-radius:50%;border:1.5px solid #d9a10a;background:#ffd76a;box-sizing:border-box;cursor:pointer;transition:transform .12s ease,opacity .12s ease}
 .gh-md-comment-dot:hover{transform:scale(1.15)}
 .gh-md-comment-dot[data-resolved="1"]{background:transparent;border-color:#b8c0c8}
+.gh-md-comment-dot.is-unread{border-color:var(--dsw-alias-state-info-primary,#0969da);box-shadow:0 0 0 3px rgb(9 105 218 / 22%)}
+.gh-md-comments-chip-new{margin-left:2px;padding:0 5px;border-radius:8px;background:rgb(9 105 218 / 12%);color:var(--dsw-alias-state-info-primary,#0969da);font-size:10px;font-weight:600}
+.gh-md-comments-item-new{padding:0 5px;border-radius:8px;background:rgb(9 105 218 / 12%);color:var(--dsw-alias-state-info-primary,#0969da);font-size:10px;font-weight:600;align-self:flex-start;margin-top:2px}
 .gh-md-comment-card{position:fixed;pointer-events:auto;display:none;width:${CARD_WIDTH}px;box-sizing:border-box;padding:10px 12px 8px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l2,#d0d7de);box-shadow:0 6px 22px rgb(0 0 0 / 16%);max-height:60vh;overflow:auto}
 .gh-md-comment-card.is-open{display:block}
 .gh-md-comment-card[data-resolved="1"]{opacity:.78}
@@ -197,6 +200,7 @@ export function createCommentsExtension(options = {}) {
       this.refreshScheduled = false
       this.syncScheduled = false
       this.savedSelection = null
+      this.unread = new Set()
       ensureStyle()
       this.layer = document.createElement('div')
       this.layer.className = 'gh-md-comments-layer'
@@ -358,6 +362,7 @@ export function createCommentsExtension(options = {}) {
       if (this.view.destroyed === true) return
       const stats = resolveStore(this.store, this.view.state.doc.toString())
       this.lostCount = stats.lost
+      this.unread = unreadThreads(this.store, context.author.name)
       this.view.dispatch({ effects: setComments.of(this.store) })
       this.render()
       this.layout()
@@ -546,6 +551,7 @@ export function createCommentsExtension(options = {}) {
           this.dots.set(thread.id, dot)
         }
         dot.setAttribute('data-resolved', thread.resolved ? '1' : '0')
+        dot.classList.toggle('is-unread', this.unread.has(thread.id))
         dot.title = thread.author.name + '：' + (thread.body === '' ? '（空批注）' : thread.body.slice(0, 40))
 
         let card = this.cards.get(thread.id)
@@ -598,7 +604,8 @@ export function createCommentsExtension(options = {}) {
     renderChip() {
       const total = buildThreads(this.store.comments).length
       this.chip.classList.toggle('is-visible', total > 0)
-      this.chip.innerHTML = '批注 <span class="gh-md-comments-chip-count">' + total + '</span>'
+      const fresh = this.unread === undefined ? 0 : this.unread.size
+      this.chip.innerHTML = '批注 <span class="gh-md-comments-chip-count">' + total + '</span>' + (fresh > 0 ? '<span class="gh-md-comments-chip-new">' + fresh + ' 新</span>' : '')
     }
 
     visibleThreads() {
@@ -617,10 +624,11 @@ export function createCommentsExtension(options = {}) {
       }
       this.panel.classList.add('is-open')
       const threads = this.visibleThreads()
-      const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span><span class="gh-md-comments-item-meta">' + (thread.anchor.start === null || thread.anchor.start === undefined ? '锚点丢失 · 选中文字后点这里重新挂载' : escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '')) + '</span></span></button>').join('')
-      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="print" title="打印批注清单">打印</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-lost" aria-pressed="' + (this.filter === 'lost' ? 'true' : 'false') + '">丢失</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
+      const items = threads.map((thread) => '<button type="button" class="gh-md-comments-item" data-comment-id="' + escapeHtml(thread.id) + '" data-resolved="' + (thread.resolved ? '1' : '0') + '" data-active="' + (this.openId === thread.id ? '1' : '0') + '"><span class="gh-md-comment-avatar" style="background:' + escapeHtml(thread.author.color) + '">' + escapeHtml(thread.author.initials) + '</span><span class="gh-md-comments-item-main"><span class="gh-md-comments-item-snippet">' + escapeHtml(thread.body === '' ? '（空批注）' : thread.body.slice(0, 60)) + '</span>' + (this.unread.has(thread.id) ? '<span class="gh-md-comments-item-new">新</span>' : '') + '<span class="gh-md-comments-item-meta">' + (thread.anchor.start === null || thread.anchor.start === undefined ? '锚点丢失 · 选中文字后点这里重新挂载' : escapeHtml(thread.author.name) + ' · ' + escapeHtml(formatTime(thread.createdAt)) + (thread.replies.length > 0 ? ' · ' + thread.replies.length + ' 条回复' : '')) + '</span></span></button>').join('')
+      this.panel.innerHTML = '<div class="gh-md-comments-panel-head"><span class="gh-md-comments-panel-title">批注</span><button type="button" class="gh-md-comments-nav" data-act="prev" title="上一条">‹</button><button type="button" class="gh-md-comments-nav" data-act="next" title="下一条">›</button><button type="button" class="gh-md-comments-nav" data-act="expand" title="展开/收起全部批注气泡">' + (this.allOpen === true ? '收起' : '展开') + '</button><button type="button" class="gh-md-comments-nav" data-act="copy" title="复制批注清单（Markdown 表格）">复制</button><button type="button" class="gh-md-comments-nav" data-act="print" title="打印批注清单">打印</button><button type="button" class="gh-md-comments-nav" data-act="read" title="把别人的新批注标为已读">标为已读</button><button type="button" class="gh-md-comments-nav" data-act="close" title="关闭">×</button></div><div class="gh-md-comments-filter"><button type="button" data-act="filter-all" aria-pressed="' + (this.filter === 'all' ? 'true' : 'false') + '">全部</button><button type="button" data-act="filter-open" aria-pressed="' + (this.filter === 'open' ? 'true' : 'false') + '">未解决</button><button type="button" data-act="filter-mine" aria-pressed="' + (this.filter === 'mine' ? 'true' : 'false') + '">我的</button><button type="button" data-act="filter-lost" aria-pressed="' + (this.filter === 'lost' ? 'true' : 'false') + '">丢失</button><button type="button" data-act="filter-resolved" aria-pressed="' + (this.filter === 'resolved' ? 'true' : 'false') + '">已解决</button></div><div class="gh-md-comments-list">' + (items === '' ? '<div class="gh-md-comments-item-meta" style="padding:8px">没有符合条件的批注</div>' : items) + '</div><div class="gh-md-comments-author"><button type="button" class="gh-md-comments-nav" data-act="import" title="从同名 .docx 导入批注" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">从 Word 导入</button><button type="button" class="gh-md-comments-nav" data-act="export" title="写回 <doc>-comments.docx" style="border:1px solid var(--dsw-alias-border-l2,#d0d7de);border-radius:6px;padding:2px 8px;font-size:11px">导出到 Word</button><input type="text" value="' + escapeHtml(context.author.name) + '" placeholder="署名"></div>'
       this.panel.querySelector('[data-act="expand"]').addEventListener('click', (event) => { event.preventDefault(); this.setAllOpen(this.allOpen !== true); this.renderPanel(); this.layout() })
       this.panel.querySelector('[data-act="print"]').addEventListener('click', (event) => { event.preventDefault(); this.printList() })
+      this.panel.querySelector('[data-act="read"]').addEventListener('click', (event) => { event.preventDefault(); this.markAllRead() })
       this.panel.querySelector('[data-act="copy"]').addEventListener('click', (event) => { event.preventDefault(); void this.copyList() })
       this.panel.querySelector('[data-act="close"]').addEventListener('click', (event) => { event.preventDefault(); this.togglePanel(false) })
       this.panel.querySelector('[data-act="prev"]').addEventListener('click', (event) => { event.preventDefault(); this.navigate(-1) })
@@ -752,6 +760,19 @@ export function createCommentsExtension(options = {}) {
       const index = threads.findIndex((thread) => thread.id === this.openId)
       const nextIndex = index < 0 ? (direction > 0 ? 0 : threads.length - 1) : (index + direction + threads.length) % threads.length
       this.jumpTo(threads[nextIndex].id)
+    }
+
+    /** 把别人的新批注标为已读（Word 的 new comments 清空）。 */
+    markAllRead() {
+      const marked = markRead(this.store, context.author.name)
+      if (marked === null) {
+        this.showToast('先设置一个署名')
+        return
+      }
+      this.unread = new Set()
+      this.refresh()
+      void this.save()
+      this.showToast('已标为已读')
     }
 
     /** 把丢失锚点的批注挂到当前选区（Word 里批注气泡可以拖到别处，这里是等价操作）。 */

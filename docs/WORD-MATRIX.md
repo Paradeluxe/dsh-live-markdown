@@ -16,7 +16,7 @@
 | 8 | 编辑：只有作者能改自己的批注正文 | ✅ | `model.canEditComment`、`ui`（「编辑」按钮） | `comments-permissions-test` 7/7、`gui-comments-permissions-check` 8/8 |
 | 9 | 删除：删除根批注时线程一起删 | ✅ | `model.deleteComment`（墓碑 + 级联） | `comments-model-test` 32/32 |
 | 10 | 审阅窗格：列表、跳转、显示/隐藏气泡 | ✅ | `ui.renderPanel`、`setAllOpen` | `gui-comments-panel-check` 12/12、`gui-comments-allopen-check` 7/7 |
-| 11 | 排序与筛选（全部/已解决/我的） | ✅ | `ui.visibleThreads`（全部/未解决/已解决/我的/丢失） | `gui-comments-panel-check` 12/12 |
+| 11 | 排序与筛选（全部/已解决/我的）、新批注标记 | ✅ | `ui.visibleThreads`（全部/未解决/已解决/我的/丢失）、`model.unreadThreads` | `gui-comments-panel-check` 12/12、`comments-unread-test` 14/14、`gui-comments-unread-check` 9/9 |
 | 12 | 打印标记 | ✅ | `ui.buildPrintHtml/printList`（独立可打印页） | `gui-comments-print-check` 8/8 |
 | 13 | 复制带批注的文字，粘贴到别处批注跟着走 | 🟡 | `src/comments/clipboard.js` + `ui` 的 copy/paste | `comments-clipboard-test` 13/13、`gui-comments-clipboard-check` 8/8 |
 | 14 | 多作者：每人固定头像色，同一段可挂多条 | ✅ | `model.authorColor/initialsOf`、`ui.cardHtml` | `gui-comments-merge-check` 7/7 |

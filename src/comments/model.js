@@ -67,7 +67,7 @@ function sortByPosition(left, right) {
 }
 
 export function emptyStore() {
-  return { version: COMMENT_STORE_VERSION, documentHash: null, comments: [] }
+  return { version: COMMENT_STORE_VERSION, documentHash: null, readers: {}, comments: [] }
 }
 
 /** 解析侧车 JSON（容忍缺字段），返回规范化的 store。 */
@@ -88,7 +88,13 @@ export function parseStore(input) {
     body: String(comment.body ?? ''),
     anchor: normalizeAnchor(comment.anchor),
   })) : []
-  return { version, documentHash: raw.documentHash ?? null, comments: comments.sort(sortByPosition) }
+  const readers = {}
+  if (raw.readers !== null && typeof raw.readers === 'object') {
+    for (const [name, at] of Object.entries(raw.readers)) {
+      if (typeof name === 'string' && typeof at === 'string') readers[name] = at
+    }
+  }
+  return { version, documentHash: raw.documentHash ?? null, readers, comments: comments.sort(sortByPosition) }
 }
 
 function normalizeAnchor(anchor) {
@@ -129,7 +135,14 @@ export function serializeStore(store) {
         suffix: comment.anchor?.suffix ?? '',
       },
     }))
-  const clean = JSON.stringify({ version: COMMENT_STORE_VERSION, documentHash: store.documentHash ?? null, comments }, (key, value) => (value === undefined ? undefined : value), 2)
+  const readers = {}
+  if (store.readers !== null && typeof store.readers === 'object') {
+    for (const [name, at] of Object.entries(store.readers)) if (typeof at === 'string') readers[name] = at
+  }
+  const payload = { version: COMMENT_STORE_VERSION, documentHash: store.documentHash ?? null }
+  if (Object.keys(readers).length > 0) payload.readers = readers
+  payload.comments = comments
+  const clean = JSON.stringify(payload, (key, value) => (value === undefined ? undefined : value), 2)
   return clean + '\n'
 }
 
@@ -292,6 +305,48 @@ export function createReply(store, parentId, { author, body, text, id }) {
   }
   store.comments.push(reply)
   return reply
+}
+
+/**
+ * 标记某人「读到这里」：之后别人新增/修改的批注对这个人就是「新」的（Word 的 new comments）。
+ * @param {object} store
+ * @param {string} authorName
+ * @param {string} at ISO 时间
+ * @returns {string|null} 记录的时间
+ */
+export function markRead(store, authorName, at = new Date().toISOString()) {
+  const name = String(authorName ?? '').trim()
+  if (name === '') return null
+  if (store.readers === null || typeof store.readers !== 'object') store.readers = {}
+  store.readers[name] = at
+  return at
+}
+
+/**
+ * 对某个署名来说，哪些线程是「新」的（根批注或其回复晚于上次已读时间，且不是自己写的）。
+ * @param {object} store
+ * @param {string} authorName
+ * @returns {Set<string>} 线程 id 集合
+ */
+export function unreadThreads(store, authorName) {
+  const name = String(authorName ?? '').trim()
+  const since = name !== '' && store.readers !== null && typeof store.readers === 'object' ? store.readers[name] : null
+  const fresh = new Set()
+  if (typeof since !== 'string') return fresh
+  const sinceMs = Date.parse(since)
+  if (Number.isNaN(sinceMs)) return fresh
+  const isNew = (comment) => {
+    if (comment.deleted === true) return false
+    const author = String(comment.author?.name ?? '')
+    if (author === name) return false
+    const stamp = Date.parse(comment.modifiedAt ?? comment.createdAt ?? '')
+    return Number.isNaN(stamp) === false && stamp > sinceMs
+  }
+  for (const comment of store.comments) {
+    const threadId = comment.parentId ?? comment.id
+    if (isNew(comment) === true) fresh.add(threadId)
+  }
+  return fresh
 }
 
 /**
