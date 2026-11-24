@@ -8,7 +8,10 @@ Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`
 - Reverse anchor mapping (markdown → docx): exact quote first, whitespace-insensitive second, paragraph plain-text fallback third; unmapped comments are reported as "锚点不精确" instead of silently landing at offset 0.
 - The exported document carries native Word comments (margin bubbles, reply threads, resolved flags); comments already present in the template are replaced by the sidecar set, since the sidecar is the source of truth.
 - Without a sibling `.docx` the panel reports that a template is required and writes nothing.
-- Verification: comments-export-sidecar-test.mjs 8/8 (the real manuscript's 22 comments survive export and re-parse as 22 comments / 11 threads / 3 resolved) and gui-comments-export-check.mjs 7/7 (file created, contents correct, template comments replaced, toast names the file).
+- Comments anchored on the same line now stack their margin dots 13px apart instead of drawing one on top of the other (Word stacks the balloons the same way).
+- @mentions inside a comment body render as a chip (Latin names with up to three tokens such as "@Bob Wu", and CJK names); the stored and exported body stays plain text, which is what Word does on disk too.
+- The panel header gained a "复制" action that puts the whole comment list on the clipboard as a Markdown table (# / quote / author / comment / state), the lightweight counterpart of Word's "print markup".
+- Verification: gui-comments-details-check.mjs 8/8 for the three details above; comments-export-sidecar-test.mjs 8/8 (the real manuscript's 22 comments survive export and re-parse as 22 comments / 11 threads / 3 resolved) and gui-comments-export-check.mjs 7/7 (file created, contents correct, template comments replaced, toast names the file).
 
 ## 1.3.18
 
