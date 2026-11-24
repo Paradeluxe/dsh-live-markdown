@@ -19,7 +19,7 @@
 | 11 | 排序与筛选（全部/已解决/我的）、新批注标记 | ✅ | `ui.visibleThreads`（全部/未解决/已解决/我的/丢失）、`model.unreadThreads` | `gui-comments-panel-check` 12/12、`comments-unread-test` 14/14、`gui-comments-unread-check` 9/9 |
 | 12 | 打印标记 | ✅ | `ui.buildPrintHtml/printList`（独立可打印页） | `gui-comments-print-check` 8/8 |
 | 13 | 复制带批注的文字，粘贴到别处批注跟着走 | 🟡 | `src/comments/clipboard.js` + `ui` 的 copy/paste | `comments-clipboard-test` 13/13、`gui-comments-clipboard-check` 8/8 |
-| 14 | 多作者：每人固定头像色，同一段可挂多条 | ✅ | `model.authorColor/initialsOf`、`ui.cardHtml` | `gui-comments-merge-check` 7/7 |
+| 14 | 多作者：每人固定头像色、@提及、新批注提示 | ✅ | `model.authorColor/initialsOf/mentionsAuthor/unreadThreads`、`ui.cardHtml` | `gui-comments-merge-check` 7/7、`comments-mentions-test` 10/10、`gui-comments-mentions-check` 5/5 |
 | 15 | 云端共编时批注实时出现 | 🟡 | `ui.poll`（2.5s 轮询 + `mergeStores`） | `gui-comments-live-check` 7/7 |
 | 16 | 只读文档能看不能改 | ✅ | `client.js` 的只读开关 + `ui` 只读分支 | `gui-comments-readonly-check` 6/6 |
 

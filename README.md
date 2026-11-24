@@ -837,6 +837,21 @@ MIT — see [LICENSE](LICENSE).
 
 说明：link 安装下「已安装版本」永远等于你仓库里的版本，所以我每次发版你都不会看到「有更新」；只有当你的 checkout 落后于 GitHub 上的最新 release 时，小条才会出现。
 
+## 1.3.32：@我 —— 提及标记、筛选与提醒
+
+Word 的 @提及只把名字写成文本、由服务端发通知。我们没有服务端，于是把它做成**本地可见的三件事**：
+
+| 位置 | 行为 |
+| --- | --- |
+| 列表条目 | 批注（根或回复）里 @ 了我 → 条目带「**@我**」标签 |
+| 筛选 | 面板新增「**提及我**」，只留 @ 过我的线程 |
+| 提醒 | 轮询到别人新写的批注里 @ 了我 → 提示「有人在批注里 @ 了你（某某）」，否则仍是「检测到新的批注」 |
+
+匹配规则：全名（`@Alice Chen`）与首词（`@Alice`）都算；大小写不敏感；中文名（`@张伟`）同样支持。
+
+**验收**：`comments-mentions-test.mjs` **10/10**（全名/首词/大小写/中文/不同的人不匹配/回复里的提及也算/序列化往返/空署名/null 线程）；
+`gui-comments-mentions-check.mjs` **5/5**（条目「@我」标签、「提及我」筛选只剩一条、轮询到提及给出专门提示）。
+
 ## 1.3.31：别人的新批注会标「新」
 
 Word 里别人新写的批注会以「新批注」样式出现，读完就恢复正常。这一版做同一件事：
@@ -984,6 +999,7 @@ Word 里别人新写的批注会以「新批注」样式出现，读完就恢复
 | `comments-perf-test.mjs` | 400 条批注的性能 | 5/5 |
 | `comments-reattach-test.mjs` | 丢失锚点的重新挂载 | 9/9 |
 | `comments-unread-test.mjs` | 新批注（readers）判定 | 14/14 |
+| `comments-mentions-test.mjs` | @提及匹配 | 10/10 |
 | `gui-comments-check.mjs` | 应用内主流程 | 21/21 |
 | `gui-comments-panel-check.mjs` | 面板/筛选/导航/署名 | 12/12 |
 | `gui-comments-import-check.mjs` | 导入按钮 | 11/11 |
@@ -1000,9 +1016,10 @@ Word 里别人新写的批注会以「新批注」样式出现，读完就恢复
 | `gui-comments-lost-check.mjs` | 丢失锚点恢复（应用内） | 9/9 |
 | `gui-comments-toggle-check.mjs` | 批注总开关 | 10/10 |
 | `gui-comments-unread-check.mjs` | 新批注标记（应用内） | 9/9 |
+| `gui-comments-mentions-check.mjs` | @我 标记/筛选/提醒（应用内） | 5/5 |
 | `gui-comments-merge-check.mjs` | 多人合并提示 | 7/7 |
 
-**合计 32 个套件、344 项断言，全绿。**
+**合计 34 个套件、359 项断言，全绿。**
 
 ## 1.3.24：改自己的批注，别人的只读
 

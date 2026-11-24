@@ -308,6 +308,32 @@ export function createReply(store, parentId, { author, body, text, id }) {
 }
 
 /**
+ * 这条批注（根或回复）有没有 @ 我。
+ * 支持全名与首词：`@Alice Chen` 与 `@Alice` 都算提到 Alice Chen；大小写不敏感。
+ * @param {{ body?: string, replies?: Array<object> }} thread
+ * @param {string} authorName 当前署名
+ * @returns {boolean}
+ */
+export function mentionsAuthor(thread, authorName) {
+  const name = String(authorName ?? '').trim()
+  if (name === '' || thread === null || thread === undefined) return false
+  const tokens = [name, name.split(/\s+/u)[0]].filter((token) => token !== '')
+  const bodies = [String(thread.body ?? ''), ...(Array.isArray(thread.replies) ? thread.replies.map((reply) => String(reply.body ?? '')) : [])]
+  for (const body of bodies) {
+    if (body === '') continue
+    for (const match of body.matchAll(/@([A-Za-z\u4e00-\u9fa5][A-Za-z0-9\u4e00-\u9fa5]*(?:\s[A-Z][A-Za-z0-9]*){0,2})/gu)) {
+      const mention = match[1].trim().toLowerCase()
+      for (const token of tokens) {
+        const lower = token.toLowerCase()
+        // 提到全名 @Alice Chen 也算提到 Alice；提到 @Alice 也算提到 Alice Chen
+        if (mention === lower || mention.startsWith(lower + ' ') || lower.startsWith(mention + ' ')) return true
+      }
+    }
+  }
+  return false
+}
+
+/**
  * 标记某人「读到这里」：之后别人新增/修改的批注对这个人就是「新」的（Word 的 new comments）。
  * @param {object} store
  * @param {string} authorName

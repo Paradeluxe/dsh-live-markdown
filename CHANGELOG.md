@@ -2,6 +2,11 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.32
+
+- @mentions became actionable without a notification server: mentionsAuthor(thread, name) matches a full name, the first token, case-insensitively, and CJK names, over the root body and its replies; the panel list tags such rows with "@我", a new "提及我" filter keeps only those threads, and when polling brings in a comment that mentions me the toast reads "有人在批注里 @ 了你（某某）" instead of the generic new-comment message.
+- Verification: comments-mentions-test.mjs 10/10 and gui-comments-mentions-check.mjs 5/5. README acceptance table is now 34 suites / 359 assertions, re-summed by script.
+
 ## 1.3.31
 
 - New-comment markers, the equivalent of Word's "new comments" styling: the sidecar gains an optional readers map (signature → last-read timestamp), unreadThreads() marks threads whose comments are newer than my pointer and were not written by me, and the UI shows the count on the chip ("批注 N · M 新"), a blue ring on the margin dot and a "新" tag in the panel list. Edits and replies count as new, not just additions.
