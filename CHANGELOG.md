@@ -2,6 +2,14 @@
 
 Versions follow [SemVer](https://semver.org). The plugin was developed as `0.70`–`0.114` inside a private workspace and is published from `1.0.0`; the entries below keep that development history.
 
+## 1.3.19 (unreleased)
+
+- "导出到 Word" in the comment panel: writes the sidecar comments into the sibling `.docx` template and saves the result as `<doc>-comments.docx` (the original file is never overwritten).
+- Reverse anchor mapping (markdown → docx): exact quote first, whitespace-insensitive second, paragraph plain-text fallback third; unmapped comments are reported as "锚点不精确" instead of silently landing at offset 0.
+- The exported document carries native Word comments (margin bubbles, reply threads, resolved flags); comments already present in the template are replaced by the sidecar set, since the sidecar is the source of truth.
+- Without a sibling `.docx` the panel reports that a template is required and writes nothing.
+- Verification: comments-export-sidecar-test.mjs 8/8 (the real manuscript's 22 comments survive export and re-parse as 22 comments / 11 threads / 3 resolved) and gui-comments-export-check.mjs 7/7 (file created, contents correct, template comments replaced, toast names the file).
+
 ## 1.3.18
 
 Word-compatible comments, developed on the `word-comments` branch forked from v1.3.17.

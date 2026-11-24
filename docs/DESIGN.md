@@ -2921,3 +2921,27 @@ return pkg.version !== target.version || ((target.spec.startsWith("link:") || pk
 **侧车格式**：`<doc>.comments.json`，`version: 1`，每条评论带 `author{name,initials,email,color}`、`createdAt`/`modifiedAt`、`resolved`、`parentId`、`anchor{start,end,quote,prefix,suffix}`、`deleted`。`mergeStores` 以 id 为准：tombstone 赢、`modifiedAt` 新的赢、不同 id 两边都留；`modifiedAt` 由 `nextIso()` 保证严格递增。
 
 **UI 取舍**：DSH 的文档面板常见宽度 500–700px，Word 式常驻页边卡片会把正文压成窄条，所以改成「高亮 + 页边圆点 + 悬浮卡片 + 面板列表」；跳转时收起面板，避免面板盖住卡片。
+
+---
+
+## 174. v1.3.19：批注写回 Word（markdown → docx 的反向映射）
+
+导入是 docx → markdown，导出是它的镜像：侧车里的批注必须落回 docx 的偏移上，才能变成 Word 原生的
+`w:commentRangeStart/End`。markdown 里多出来的 `#`、`**`、`[]()`、表格竖线在 docx 里并不存在，所以映射分三级：
+
+| 级别 | 规则 | 计入 |
+| --- | --- | --- |
+| 精确 | `docxText.indexOf(quote) === -1` 才算失败 | `mapped` |
+| 忽略空白 | 把 quote 按空白切成词，用 `\s*` 连接后正则搜索（markdown 的硬换行、表格竖线在 docx 里是空格或没有） | `approx` |
+| 段落兜底 | 取批注所在 markdown 段落的纯文本（`stripMarkdown` 去掉标记），在 docx 里找同一段，再在段内找 quote | `approx` |
+| 失败 | 记 `anchorStatus = 'lost'`，`start/end = null`，绝不落到偏移 0 | `lost` |
+
+**输出策略**：`<doc>.md` + `<doc>.docx` → `<doc>-comments.docx`。不覆盖模板：模板通常是投稿系统导出的原稿，
+覆盖等于毁掉原件；同时模板里已有的置标（样式、编号、图片）全部保留，因为导出器只替换批注部件与锚点。
+
+**为什么模板是必需的**：从 markdown 生成 docx 需要完整的样式/编号/页面设置，我们没有也不该在插件里造一个
+docx 生成器；用同名 docx 当模板，批注才能落在「跟论文同一份」的文件上。
+
+**验证**：`comments-export-sidecar-test.mjs` 8/8——真实稿件 22 条批注导出后重新解析仍是 22 条 / 11 线程 /
+3 条已解决、作者不变；带 markdown 标记的正文仍能全量映射；`gui-comments-export-check.mjs` 7/7——应用内点按钮
+生成文件、内容正确、模板旧批注被替换、toast 给出文件名。

@@ -12,6 +12,7 @@ import { promisify } from 'node:util'
 import { dirname, extname, normalize, resolve as resolvePath, sep } from 'node:path'
 import { sidecarPathFor, readStoreFile, writeStoreFile } from './src/comments/store-io.js'
 import { importDocxComments } from './src/comments/import.js'
+import { exportDocxFromSidecar } from './src/comments/export.js'
 import { fileURLToPath } from 'node:url'
 
 /** Loader 行名（与 cordis.patch.yml 的 insert 行对应）。 */
@@ -433,6 +434,53 @@ async function serveCommentsApi(ctx, req, res, pathname, search) {
         total: saved.store.comments.length,
         mtimeMs: saved.mtimeMs,
         store: saved.store,
+      })
+    }
+    if (action === 'export' && req.method === 'POST') {
+      // 把侧车里的批注写回 docx：不覆盖原文件，输出 <doc>-comments.docx
+      let body = ''
+      req.setEncoding('utf8')
+      await new Promise((resolveDone) => {
+        req.on('data', (chunk) => {
+          if (body.length < 1024 * 1024) body += chunk
+        })
+        req.on('end', () => resolveDone())
+        req.on('error', () => resolveDone())
+      })
+      let payload = null
+      try {
+        payload = body === '' ? null : JSON.parse(body)
+      } catch {
+        payload = null
+      }
+      if (payload === null || typeof payload !== 'object') return sendJson(res, 400, { error: 'bad-json' })
+      const root = workspaceRootOf(ctx, payload.sessionId ?? '')
+      if (root === null) return sendJson(res, 404, { error: 'workspace-unknown' })
+      const markdownPath = typeof payload.path === 'string' ? payload.path : ''
+      if (markdownPath === '') return sendJson(res, 400, { error: 'path-required' })
+      const target = resolveInside(root, markdownPath)
+      if (target === null) return sendJson(res, 403, { error: 'outside-workspace' })
+      const docxPath = target.replace(/\.(md|markdown|mdown|txt)$/iu, '.docx')
+      let docxBuffer = null
+      try {
+        docxBuffer = await readFile(docxPath)
+      } catch {
+        return sendJson(res, 200, { ok: true, found: false })
+      }
+      const markdownText = await readFile(target, 'utf8')
+      const sidecar = sidecarPathFor(target)
+      const current = await readStoreFile(sidecar)
+      if (current.store.comments.length === 0) return sendJson(res, 200, { ok: true, found: true, empty: true })
+      const result = exportDocxFromSidecar({ docxBuffer, store: current.store, markdownText })
+      const outPath = docxPath.replace(/\.docx$/iu, '-comments.docx')
+      await writeFile(outPath, result.buffer)
+      return sendJson(res, 200, {
+        ok: true,
+        found: true,
+        empty: false,
+        file: outPath.slice(root.length + 1).split(sep).join('/'),
+        comments: result.comments,
+        mapStats: result.stats,
       })
     }
     return sendJson(res, 404, { error: 'unknown-action', action })
